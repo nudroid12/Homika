@@ -3,6 +3,14 @@
   "name": "app-license-api",
   "main": "src/index.js",
   "compatibility_date": "2026-09-02",
+   "preview_urls": false,
+
+"observability": {
+  "enabled": true,
+  "logs": {
+    "enabled": true
+  }
+},
 
   "d1_databases": [
     {
