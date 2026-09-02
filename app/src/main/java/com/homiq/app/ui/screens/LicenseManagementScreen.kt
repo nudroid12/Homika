@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,8 +32,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +45,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.homiq.app.R
 import com.homiq.app.data.license.LicenseUiState
+import java.text.DateFormat
+import java.util.Date
+
+private const val VERIFY_FEEDBACK_SUCCESS = "success"
+private const val VERIFY_FEEDBACK_OFFLINE = "offline"
+private const val VERIFY_FEEDBACK_FAILED = "failed"
 
 @Composable
 fun LicenseManagementScreen(
@@ -52,6 +61,27 @@ fun LicenseManagementScreen(
     modifier: Modifier = Modifier,
 ) {
     var confirmDeactivate by rememberSaveable { mutableStateOf(false) }
+    var verificationRequested by rememberSaveable { mutableStateOf(false) }
+    var verificationFeedback by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(
+        state.busy,
+        state.lastValidatedAtMillis,
+        state.usingOfflineGrace,
+        state.errorCode,
+    ) {
+        if (verificationRequested && !state.busy) {
+            verificationFeedback = when {
+                state.usingOfflineGrace || state.errorCode == "offline_grace" ->
+                    VERIFY_FEEDBACK_OFFLINE
+                state.errorCode == null ->
+                    VERIFY_FEEDBACK_SUCCESS
+                else ->
+                    VERIFY_FEEDBACK_FAILED
+            }
+            verificationRequested = false
+        }
+    }
 
     BackHandler(onBack = onBack)
 
@@ -159,6 +189,15 @@ fun LicenseManagementScreen(
                         state.maxDevices,
                     ),
                 )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 52.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                )
+                LicenseInfoRow(
+                    icon = Icons.Outlined.Schedule,
+                    label = stringResource(R.string.license_last_verified),
+                    value = lastVerifiedText(state.lastValidatedAtMillis),
+                )
             }
         }
 
@@ -170,8 +209,52 @@ fun LicenseManagementScreen(
             )
         }
 
+        verificationFeedback?.let { feedback ->
+            val success = feedback == VERIFY_FEEDBACK_SUCCESS
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = if (success) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.errorContainer
+                },
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (success) {
+                        Icon(
+                            imageVector = Icons.Outlined.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Text(
+                        text = when (feedback) {
+                            VERIFY_FEEDBACK_SUCCESS -> stringResource(R.string.license_verify_success)
+                            VERIFY_FEEDBACK_OFFLINE -> stringResource(R.string.license_verify_offline)
+                            else -> stringResource(R.string.license_verify_failed)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (success) {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        },
+                    )
+                }
+            }
+        }
+
         Button(
-            onClick = onRefresh,
+            onClick = {
+                verificationFeedback = null
+                verificationRequested = true
+                onRefresh()
+            },
             enabled = !state.busy,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -181,6 +264,8 @@ fun LicenseManagementScreen(
                     strokeWidth = 2.dp,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.license_verifying_now))
             } else {
                 Text(stringResource(R.string.license_verify_now))
             }
@@ -226,6 +311,20 @@ fun LicenseManagementScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun lastVerifiedText(lastValidatedAtMillis: Long): String {
+    if (lastValidatedAtMillis <= 0L) {
+        return stringResource(R.string.license_never_verified)
+    }
+
+    return remember(lastValidatedAtMillis) {
+        DateFormat.getDateTimeInstance(
+            DateFormat.MEDIUM,
+            DateFormat.SHORT,
+        ).format(Date(lastValidatedAtMillis))
     }
 }
 

@@ -214,6 +214,7 @@ class LicenseRepository(
                 expiresAt = stored?.expiresAt,
                 maxDevices = stored?.maxDevices ?: 3,
                 activeDevices = stored?.activeDevices ?: 0,
+                lastValidatedAtMillis = stored?.lastValidatedAtMillis ?: 0L,
                 errorCode = "network_required",
             )
         }
@@ -256,6 +257,7 @@ class LicenseRepository(
             expiresAt = result.expiresAt ?: stored?.expiresAt,
             maxDevices = result.maxDevices ?: stored?.maxDevices ?: 3,
             activeDevices = result.activeDevices ?: stored?.activeDevices ?: 0,
+            lastValidatedAtMillis = stored?.lastValidatedAtMillis ?: 0L,
             errorCode = result.code,
         )
     }
@@ -312,6 +314,7 @@ class LicenseRepository(
             expiresAt = trustedActivation.expiresAt,
             maxDevices = trustedActivation.maxDevices,
             activeDevices = trustedActivation.activeDevices,
+            lastValidatedAtMillis = now,
         )
     }
 
@@ -327,6 +330,7 @@ class LicenseRepository(
             expiresAt = stored.expiresAt,
             maxDevices = stored.maxDevices,
             activeDevices = stored.activeDevices,
+            lastValidatedAtMillis = stored.lastValidatedAtMillis,
             errorCode = errorCode,
             usingOfflineGrace = usingOfflineGrace,
         )

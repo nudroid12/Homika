@@ -42,4 +42,10 @@
     <string name="license_deactivate_confirm_body">Homika Pro akan kembali ke skrin pengaktifan pada peranti ini. Data hartanah dan tempahan lokal kekal pada peranti.</string>
     <string name="license_deactivate_confirm">Nyahaktif</string>
     <string name="license_deactivate_network">Tidak dapat nyahaktif kerana pelayan lesen tidak dapat dicapai. Sambungkan internet dan cuba lagi.</string>
+    <string name="license_last_verified">Terakhir disahkan</string>
+    <string name="license_never_verified">Belum pernah disahkan</string>
+    <string name="license_verifying_now">Sedang menyemak...</string>
+    <string name="license_verify_success">Lesen berjaya disahkan. Status pelayan kini terkini.</string>
+    <string name="license_verify_offline">Pelayan lesen tidak dapat dicapai. Homika masih aktif menggunakan tempoh offline.</string>
+    <string name="license_verify_failed">Pengesahan lesen gagal. Semak sambungan internet dan status lesen, kemudian cuba lagi.</string>
 </resources>

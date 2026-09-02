@@ -18,6 +18,7 @@ data class LicenseUiState(
     val expiresAt: String? = null,
     val maxDevices: Int = 3,
     val activeDevices: Int = 0,
+    val lastValidatedAtMillis: Long = 0L,
     val busy: Boolean = false,
     val errorCode: String? = null,
     val usingOfflineGrace: Boolean = false,

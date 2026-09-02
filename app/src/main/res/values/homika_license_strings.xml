@@ -42,4 +42,10 @@
     <string name="license_deactivate_confirm_body">Homika Pro will return to the activation screen on this device. Local property and booking data will remain on the device.</string>
     <string name="license_deactivate_confirm">Deactivate</string>
     <string name="license_deactivate_network">Could not deactivate because the licence server is unreachable. Connect to the internet and try again.</string>
+    <string name="license_last_verified">Last verified</string>
+    <string name="license_never_verified">Not verified yet</string>
+    <string name="license_verifying_now">Verifying...</string>
+    <string name="license_verify_success">Licence verified successfully. Server status is up to date.</string>
+    <string name="license_verify_offline">Could not reach the licence server. Homika is still active using the offline grace period.</string>
+    <string name="license_verify_failed">Licence verification failed. Check your connection and licence status, then try again.</string>
 </resources>
