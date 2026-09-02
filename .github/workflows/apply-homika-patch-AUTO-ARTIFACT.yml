@@ -105,12 +105,10 @@ jobs:
 
               zf.extractall(extract_root)
 
-          entries = [p for p in extract_root.iterdir() if p.name != "__MACOSX"]
-
-          if len(entries) == 1 and entries[0].is_dir():
-              source_root = entries[0]
-          else:
-              source_root = extract_root
+          # Patch ZIPs always use repository-relative paths.
+          # Never strip a single top-level directory such as app/, because
+          # app/ is the real Android module path, not an archive wrapper.
+          source_root = extract_root
 
           delete_manifest = source_root / "DELETE_FILES.txt"
           if delete_manifest.exists():
@@ -262,3 +260,4 @@ jobs:
             echo "- Debug APK uploaded as Actions Artifact."
             echo "- Artifact retention: 14 days."
           } >> "$GITHUB_STEP_SUMMARY"
+          
