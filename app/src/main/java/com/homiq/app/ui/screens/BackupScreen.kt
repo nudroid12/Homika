@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -122,6 +123,55 @@ fun BackupScreen(
                     value = latestText,
                 )
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.cloud_auto_backup_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.cloud_auto_backup_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = state.automaticCloudBackupEnabled,
+                        onCheckedChange = viewModel::setAutomaticCloudBackup,
+                        enabled = !state.isBusy,
+                    )
+                }
+
+                val automaticStatus = when {
+                    !state.automaticCloudBackupEnabled ->
+                        stringResource(R.string.cloud_auto_backup_off)
+                    state.automaticCloudBackupRunning ->
+                        stringResource(R.string.cloud_auto_backup_running)
+                    state.automaticCloudBackupPending ->
+                        stringResource(R.string.cloud_auto_backup_pending)
+                    state.lastAutomaticCloudBackupEpochMillis != null ->
+                        stringResource(
+                            R.string.cloud_auto_backup_last,
+                            formatDateTime(
+                                context,
+                                state.lastAutomaticCloudBackupEpochMillis!!,
+                            ),
+                        )
+                    else -> stringResource(R.string.cloud_auto_backup_ready)
+                }
+                Text(
+                    text = automaticStatus,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
                 Button(
                     onClick = viewModel::createCloudBackup,
                     enabled = !state.isBusy,
@@ -152,7 +202,7 @@ fun BackupScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = stringResource(R.string.cloud_phase_one_note),
+                    text = stringResource(R.string.cloud_phase_two_note),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -280,14 +330,14 @@ private fun HistoryRow(
     label: String,
     value: String,
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = value,

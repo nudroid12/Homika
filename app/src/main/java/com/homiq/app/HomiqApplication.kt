@@ -7,4 +7,9 @@ class HomiqApplication : Application() {
     val container: HomiqAppContainer by lazy {
         HomiqAppContainer(applicationContext)
     }
+
+    override fun onCreate() {
+        super.onCreate()
+        container.startBackgroundServices()
+    }
 }

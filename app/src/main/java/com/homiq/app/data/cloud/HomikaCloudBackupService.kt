@@ -4,52 +4,65 @@ import com.homiq.app.data.backup.BackupPreview
 import com.homiq.app.data.backup.HomiqBackupCodec
 import com.homiq.app.data.backup.HomiqBackupService
 import com.homiq.app.data.license.LicenseRepository
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class HomikaCloudBackupService(
     private val backupService: HomiqBackupService,
     private val licenseRepository: LicenseRepository,
     private val api: CloudBackupApiClient = CloudBackupApiClient(),
 ) {
+    private val uploadMutex = Mutex()
+
     suspend fun latest(): CloudBackupResult<CloudBackupMetadata?> {
         val credentials = licenseRepository.cloudCredentials()
             ?: return CloudBackupResult.failure(CloudBackupFailureReason.LICENSE_REQUIRED)
         return api.latest(credentials)
     }
 
-    suspend fun backupNow(): CloudBackupResult<Pair<CloudBackupMetadata, BackupPreview>> {
-        val credentials = licenseRepository.cloudCredentials()
-            ?: return CloudBackupResult.failure(CloudBackupFailureReason.LICENSE_REQUIRED)
+    suspend fun backupNow(): CloudBackupResult<Pair<CloudBackupMetadata, BackupPreview>> =
+        uploadMutex.withLock {
+            val credentials = licenseRepository.cloudCredentials()
+                ?: return@withLock CloudBackupResult.failure(
+                    CloudBackupFailureReason.LICENSE_REQUIRED,
+                )
 
-        val snapshot = runCatching { backupService.captureSnapshot() }
-            .getOrElse {
-                return CloudBackupResult.failure(CloudBackupFailureReason.SERVER_ERROR)
+            val snapshot = runCatching { backupService.captureSnapshot() }
+                .getOrElse {
+                    return@withLock CloudBackupResult.failure(
+                        CloudBackupFailureReason.SERVER_ERROR,
+                    )
+                }
+            val preview = HomiqBackupCodec.preview(snapshot)
+            val raw = runCatching { HomiqBackupCodec.encode(snapshot) }
+                .getOrElse {
+                    return@withLock CloudBackupResult.failure(
+                        CloudBackupFailureReason.INVALID_CLOUD_BACKUP,
+                    )
+                }
+
+            val keyResult = api.fetchCloudKey(credentials)
+            val key = keyResult.value
+                ?: return@withLock CloudBackupResult.failure(
+                    keyResult.failure ?: CloudBackupFailureReason.SERVER_ERROR,
+                )
+
+            val encrypted = runCatching {
+                CloudBackupCrypto.encrypt(raw, key)
+            }.getOrElse {
+                return@withLock CloudBackupResult.failure(
+                    CloudBackupFailureReason.INVALID_CLOUD_BACKUP,
+                )
             }
-        val preview = HomiqBackupCodec.preview(snapshot)
-        val raw = runCatching { HomiqBackupCodec.encode(snapshot) }
-            .getOrElse {
-                return CloudBackupResult.failure(CloudBackupFailureReason.INVALID_CLOUD_BACKUP)
-            }
 
-        val keyResult = api.fetchCloudKey(credentials)
-        val key = keyResult.value
-            ?: return CloudBackupResult.failure(
-                keyResult.failure ?: CloudBackupFailureReason.SERVER_ERROR,
-            )
+            val uploaded = api.upload(credentials, encrypted, preview)
+            val metadata = uploaded.value
+                ?: return@withLock CloudBackupResult.failure(
+                    uploaded.failure ?: CloudBackupFailureReason.SERVER_ERROR,
+                )
 
-        val encrypted = runCatching {
-            CloudBackupCrypto.encrypt(raw, key)
-        }.getOrElse {
-            return CloudBackupResult.failure(CloudBackupFailureReason.INVALID_CLOUD_BACKUP)
+            CloudBackupResult.success(metadata to preview)
         }
-
-        val uploaded = api.upload(credentials, encrypted, preview)
-        val metadata = uploaded.value
-            ?: return CloudBackupResult.failure(
-                uploaded.failure ?: CloudBackupFailureReason.SERVER_ERROR,
-            )
-
-        return CloudBackupResult.success(metadata to preview)
-    }
 
     suspend fun prepareLatestRestore(): CloudBackupResult<PreparedCloudRestore> {
         val credentials = licenseRepository.cloudCredentials()

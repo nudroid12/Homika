@@ -10,7 +10,14 @@
     <string name="cloud_backup_now">Backup ke Homika Cloud</string>
     <string name="cloud_restore_latest">Pulihkan backup cloud terkini</string>
     <string name="cloud_encryption_note">Homika memampat dan mengenkripsi backup dengan AES-256-GCM sebelum upload. Storan cloud hanya menerima fail backup yang telah dienkripsi.</string>
-    <string name="cloud_phase_one_note">Cloud Backup Fasa 1 dibuat secara manual. Backup automatik di latar belakang dan sync multi-peranti secara langsung akan ditambah dalam fasa seterusnya.</string>
+    <string name="cloud_phase_two_note">Cloud Backup Fasa 2 mengatur backup perubahan lokal secara automatik. Edit digabung selama 30 saat, upload dihadkan paling kerap sekali setiap 2 minit, dan perubahan tertangguh dicuba semula apabila Homika dibuka semula.</string>
+    <string name="cloud_auto_backup_title">Backup cloud automatik</string>
+    <string name="cloud_auto_backup_body">Backup perubahan secara automatik selepas data Homika diedit.</string>
+    <string name="cloud_auto_backup_off">Backup automatik dimatikan</string>
+    <string name="cloud_auto_backup_running">Sedang backup perubahan…</string>
+    <string name="cloud_auto_backup_pending">Perubahan sedang menunggu backup cloud</string>
+    <string name="cloud_auto_backup_ready">Backup automatik sedia</string>
+    <string name="cloud_auto_backup_last">Backup automatik terakhir: %1$s</string>
     <string name="local_backup_title">Backup lokal mudah alih</string>
 
     <string name="cloud_backup_success_title">Backup cloud selesai</string>

@@ -187,6 +187,8 @@ class HomiqViewModelFactory(
                         container.backupPreferences,
                     cloudService =
                         container.cloudBackupService,
+                    autoBackupCoordinator =
+                        container.cloudAutoBackupCoordinator,
                 ) as T
 
             else -> error(

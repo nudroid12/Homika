@@ -12,6 +12,7 @@ import com.homiq.app.data.backup.BackupReadResult
 import com.homiq.app.data.backup.BackupRestoreResult
 import com.homiq.app.data.backup.BackupWriteResult
 import com.homiq.app.data.backup.HomiqBackupService
+import com.homiq.app.data.cloud.CloudAutoBackupCoordinator
 import com.homiq.app.data.cloud.CloudBackupFailureReason
 import com.homiq.app.data.cloud.CloudBackupMetadata
 import com.homiq.app.data.cloud.HomikaCloudBackupService
@@ -21,6 +22,7 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 data class BackupUiState(
@@ -34,6 +36,10 @@ data class BackupUiState(
     val lastBackupDestination: BackupDestination? = null,
     val lastRestoreSource: BackupDestination? = null,
     val cloudLatest: CloudBackupMetadata? = null,
+    val automaticCloudBackupEnabled: Boolean = true,
+    val automaticCloudBackupPending: Boolean = false,
+    val automaticCloudBackupRunning: Boolean = false,
+    val lastAutomaticCloudBackupEpochMillis: Long? = null,
     val pendingRestorePreview: BackupPreview? = null,
     val message: BackupUiMessage? = null,
 )
@@ -65,6 +71,7 @@ class BackupViewModel(
     private val service: HomiqBackupService,
     private val backupPreferences: BackupPreferences,
     private val cloudService: HomikaCloudBackupService,
+    private val autoBackupCoordinator: CloudAutoBackupCoordinator,
 ) : ViewModel() {
     private var pendingFileRestoreUri: Uri? = null
     private var pendingCloudRestore: PreparedCloudRestore? = null
@@ -75,6 +82,11 @@ class BackupViewModel(
                 history = service.history(),
                 lastBackupDestination = backupPreferences.lastBackupDestination,
                 lastRestoreSource = backupPreferences.lastRestoreSource,
+                automaticCloudBackupEnabled = autoBackupCoordinator.state.value.enabled,
+                automaticCloudBackupPending = autoBackupCoordinator.state.value.pending,
+                automaticCloudBackupRunning = autoBackupCoordinator.state.value.isRunning,
+                lastAutomaticCloudBackupEpochMillis =
+                    autoBackupCoordinator.state.value.lastSuccessEpochMillis,
             ),
         )
 
@@ -82,6 +94,23 @@ class BackupViewModel(
 
     init {
         refreshCloud()
+        viewModelScope.launch {
+            autoBackupCoordinator.state.collect { autoState ->
+                val previousAutoSuccess = mutableState.value.lastAutomaticCloudBackupEpochMillis
+                mutableState.value = mutableState.value.copy(
+                    automaticCloudBackupEnabled = autoState.enabled,
+                    automaticCloudBackupPending = autoState.pending,
+                    automaticCloudBackupRunning = autoState.isRunning,
+                    lastAutomaticCloudBackupEpochMillis = autoState.lastSuccessEpochMillis,
+                )
+                if (
+                    autoState.lastSuccessEpochMillis != null &&
+                    autoState.lastSuccessEpochMillis != previousAutoSuccess
+                ) {
+                    refreshCloud()
+                }
+            }
+        }
     }
 
     fun backupFileName(): String {
@@ -111,6 +140,7 @@ class BackupViewModel(
             if (success != null) {
                 val (metadata, preview) = success
                 backupPreferences.recordBackup(BackupDestination.HOMIKA_CLOUD)
+                autoBackupCoordinator.markCloudCurrent(metadata.createdAtEpochMillis)
                 mutableState.value = mutableState.value.copy(
                     isBusy = false,
                     cloudLatest = metadata,
@@ -121,6 +151,11 @@ class BackupViewModel(
                 cloudFail(result.failure ?: CloudBackupFailureReason.SERVER_ERROR)
             }
         }
+    }
+
+
+    fun setAutomaticCloudBackup(enabled: Boolean) {
+        autoBackupCoordinator.setEnabled(enabled)
     }
 
     fun inspectCloudRestore() {
@@ -201,6 +236,13 @@ class BackupViewModel(
             when (result) {
                 is BackupRestoreResult.Success -> {
                     backupPreferences.recordRestore(source)
+                    if (source == BackupDestination.HOMIKA_CLOUD) {
+                        autoBackupCoordinator.markCloudCurrent(
+                            cloud!!.metadata.createdAtEpochMillis,
+                        )
+                    } else {
+                        autoBackupCoordinator.markLocalDataChanged()
+                    }
                     pendingFileRestoreUri = null
                     pendingCloudRestore = null
                     mutableState.value = mutableState.value.copy(

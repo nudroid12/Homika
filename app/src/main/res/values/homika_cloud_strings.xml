@@ -10,7 +10,14 @@
     <string name="cloud_backup_now">Back up to Homika Cloud</string>
     <string name="cloud_restore_latest">Restore latest cloud backup</string>
     <string name="cloud_encryption_note">Homika compresses and encrypts the backup with AES-256-GCM before upload. Cloud storage receives only the encrypted backup blob.</string>
-    <string name="cloud_phase_one_note">Cloud Backup Phase 1 is manual. Automatic background backup and live multi-device sync will be added in the next phases.</string>
+    <string name="cloud_phase_two_note">Cloud Backup Phase 2 automatically queues local changes. Edits are grouped for 30 seconds, uploads are limited to at most once every 2 minutes, and pending changes retry when Homika starts again.</string>
+    <string name="cloud_auto_backup_title">Automatic cloud backup</string>
+    <string name="cloud_auto_backup_body">Automatically back up changes after you edit Homika data.</string>
+    <string name="cloud_auto_backup_off">Automatic backup is off</string>
+    <string name="cloud_auto_backup_running">Backing up changes…</string>
+    <string name="cloud_auto_backup_pending">Changes are queued for cloud backup</string>
+    <string name="cloud_auto_backup_ready">Automatic backup is ready</string>
+    <string name="cloud_auto_backup_last">Last automatic backup: %1$s</string>
     <string name="local_backup_title">Portable local backup</string>
 
     <string name="cloud_backup_success_title">Cloud backup complete</string>
