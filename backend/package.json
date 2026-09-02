@@ -1,0 +1,14 @@
+{
+  "name": "homika-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Homika Pro licence and encrypted cloud backup backend",
+  "scripts": {
+    "check": "node --check src/index.js",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.*
+*.pem
+*.key
+*PRIVATE_KEY*
+*CLOUD_MASTER_KEY*
+.DS_Store

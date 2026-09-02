@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "app-license-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-03",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "app-license-prod",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "BACKUPS",
+      "bucket_name": "homika-cloud-prod"
+    }
+  ]
+}
