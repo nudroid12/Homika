@@ -69,6 +69,7 @@ import com.homiq.app.ui.screens.DepositScreen
 import com.homiq.app.ui.screens.ExpenseFormScreen
 import com.homiq.app.ui.screens.HomeScreen
 import com.homiq.app.ui.screens.LicenseActivationScreen
+import com.homiq.app.ui.screens.LicenseManagementScreen
 import com.homiq.app.ui.screens.MoneyScreen
 import com.homiq.app.ui.screens.MoreScreen
 import com.homiq.app.ui.screens.OnboardingScreen
@@ -113,6 +114,7 @@ private enum class HomiqRoute {
     REPORTS,
     BACKUP,
     SECURITY,
+    LICENSE,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -224,6 +226,7 @@ fun HomiqApp() {
                 HomiqRoute.REPORTS -> goMain(HomiqDestination.Home)
                 HomiqRoute.BACKUP,
                 HomiqRoute.SECURITY,
+                HomiqRoute.LICENSE,
                 HomiqRoute.PROPERTIES -> goMain(HomiqDestination.More)
                 HomiqRoute.MAIN -> Unit
             }
@@ -295,6 +298,7 @@ fun HomiqApp() {
                 HomiqDestination.More -> MoreScreen(
                     onPropertiesClick = { navigate(HomiqRoute.PROPERTIES) },
                     onBackupClick = { navigate(HomiqRoute.BACKUP) },
+                    onLicenseClick = { navigate(HomiqRoute.LICENSE) },
                     appLockEnabled = appLockState.hasPin,
                     onSecurityClick = { navigate(HomiqRoute.SECURITY) },
                     onCheckUpdates = { updateManager.checkForUpdates(manual = true) },
@@ -368,6 +372,13 @@ fun HomiqApp() {
                 HomiqRoute.REPORTS -> ReportsScreen(viewModel = reportsViewModel, modifier = Modifier.padding(innerPadding))
                 HomiqRoute.BACKUP -> BackupScreen(viewModel = backupViewModel, modifier = Modifier.padding(innerPadding))
                 HomiqRoute.SECURITY -> SecurityScreen(viewModel = appLockViewModel, modifier = Modifier.padding(innerPadding))
+                HomiqRoute.LICENSE -> LicenseManagementScreen(
+                    state = licenseState,
+                    onRefresh = licenseViewModel::refreshNow,
+                    onDeactivate = licenseViewModel::deactivate,
+                    onBack = { goMain(HomiqDestination.More) },
+                    modifier = Modifier.padding(innerPadding),
+                )
                 HomiqRoute.MAIN -> Unit
             }
         }

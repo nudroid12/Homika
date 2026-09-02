@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -63,6 +64,7 @@ import com.homiq.app.ui.viewmodel.HomiqViewModelFactory
 fun MoreScreen(
     onPropertiesClick: () -> Unit,
     onBackupClick: () -> Unit,
+    onLicenseClick: () -> Unit,
     appLockEnabled: Boolean,
     onSecurityClick: () -> Unit,
     onCheckUpdates: () -> Unit,
@@ -139,6 +141,14 @@ fun MoreScreen(
                     R.string.account_local_short,
                 ),
                 onClick = { showAccount = true },
+            )
+            CompactDivider()
+            CompactSettingRow(
+                icon = Icons.Outlined.VerifiedUser,
+                title = stringResource(R.string.license_settings_title),
+                supporting = stringResource(R.string.license_settings_supporting),
+                trailing = stringResource(R.string.license_settings_active),
+                onClick = onLicenseClick,
             )
         }
 

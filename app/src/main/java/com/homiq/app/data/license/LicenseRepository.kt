@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 
 class LicenseRepository(
     context: Context,
@@ -17,21 +18,19 @@ class LicenseRepository(
 
     fun localState(nowMillis: Long = System.currentTimeMillis()): LicenseUiState {
         val stored = preferences.read()
-            ?: return LicenseUiState(access = LicenseAccess.ACTIVATION_REQUIRED)
-
-        val clockRolledBack =
-            stored.lastObservedAtMillis > 0L &&
-                nowMillis + CLOCK_ROLLBACK_TOLERANCE_MS < stored.lastObservedAtMillis
-
-        if (clockRolledBack) {
-            return uiFromStored(
-                stored = stored,
-                access = LicenseAccess.CHECKING,
-                errorCode = "clock_verification_required",
-            )
+        if (stored == null) {
+            return if (!preferences.legacyLicenseKey().isNullOrBlank()) {
+                LicenseUiState(access = LicenseAccess.CHECKING)
+            } else {
+                LicenseUiState(access = LicenseAccess.ACTIVATION_REQUIRED)
+            }
         }
 
-        preferences.markObserved(nowMillis)
+        val verified = ActivationTokenVerifier.verify(
+            token = stored.activationToken,
+            expectedDeviceId = deviceId,
+            nowMillis = nowMillis,
+        )
 
         if (nowMillis >= stored.expiresAtEpochMillis) {
             return uiFromStored(
@@ -41,26 +40,66 @@ class LicenseRepository(
             )
         }
 
+        if (verified == null) {
+            return uiFromStored(
+                stored = stored,
+                access = LicenseAccess.INVALID,
+                errorCode = "invalid_activation_token",
+            )
+        }
+
+        val trusted = stored.copy(
+            licenseHint = verified.licenseHint,
+            expiresAtEpochMillis = verified.expiresAtEpochMillis,
+            maxDevices = verified.maxDevices,
+        )
+
+        val clockRolledBack =
+            trusted.lastObservedAtMillis > 0L &&
+                nowMillis + CLOCK_ROLLBACK_TOLERANCE_MS < trusted.lastObservedAtMillis
+
+        if (clockRolledBack) {
+            return uiFromStored(
+                stored = trusted,
+                access = LicenseAccess.CHECKING,
+                errorCode = "clock_verification_required",
+            )
+        }
+
+        preferences.markObserved(nowMillis)
+
+        if (nowMillis >= trusted.expiresAtEpochMillis) {
+            return uiFromStored(
+                stored = trusted,
+                access = LicenseAccess.EXPIRED,
+                errorCode = "license_expired",
+            )
+        }
+
         val withinOfflineGrace =
-            stored.lastValidatedAtMillis > 0L &&
-                nowMillis - stored.lastValidatedAtMillis <= OFFLINE_GRACE_MS
+            trusted.lastValidatedAtMillis > 0L &&
+                nowMillis - trusted.lastValidatedAtMillis <= OFFLINE_GRACE_MS
 
         return if (withinOfflineGrace) {
             uiFromStored(
-                stored = stored,
+                stored = trusted,
                 access = LicenseAccess.ACTIVE,
-                usingOfflineGrace = nowMillis - stored.lastValidatedAtMillis > VALIDATION_INTERVAL_MS,
+                usingOfflineGrace =
+                    nowMillis - trusted.lastValidatedAtMillis > VALIDATION_INTERVAL_MS,
             )
         } else {
             uiFromStored(
-                stored = stored,
+                stored = trusted,
                 access = LicenseAccess.CHECKING,
             )
         }
     }
 
     fun shouldRefresh(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        if (!preferences.legacyLicenseKey().isNullOrBlank()) return true
+
         val stored = preferences.read() ?: return false
+        if (nowMillis >= stored.expiresAtEpochMillis) return true
         if (stored.lastValidatedAtMillis <= 0L) return true
         if (nowMillis + CLOCK_ROLLBACK_TOLERANCE_MS < stored.lastObservedAtMillis) return true
         return nowMillis - stored.lastValidatedAtMillis >= VALIDATION_INTERVAL_MS
@@ -76,20 +115,70 @@ class LicenseRepository(
         }
 
         return when (val result = api.activate(key, deviceId, deviceName)) {
-            is LicenseApiResult.Success -> saveAndBuildActive(key, result.activation)
-            is LicenseApiResult.Rejected -> rejectedState(key, result)
-            LicenseApiResult.NetworkError -> networkState(key)
+            is LicenseApiResult.Success ->
+                saveAndBuildActive(result.activation, enteredKey = key)
+            is LicenseApiResult.Rejected ->
+                rejectedState(key, result)
+            LicenseApiResult.NetworkError ->
+                networkState(key)
         }
     }
 
     suspend fun validate(): LicenseUiState {
         val stored = preferences.read()
+        if (stored == null) {
+            val legacyKey = preferences.legacyLicenseKey()
+                ?: return LicenseUiState(access = LicenseAccess.ACTIVATION_REQUIRED)
+
+            return when (val result = api.activate(legacyKey, deviceId, deviceName)) {
+                is LicenseApiResult.Success ->
+                    saveAndBuildActive(result.activation, enteredKey = legacyKey)
+                is LicenseApiResult.Rejected ->
+                    rejectedState(legacyKey, result)
+                LicenseApiResult.NetworkError ->
+                    LicenseUiState(
+                        access = LicenseAccess.NEEDS_INTERNET,
+                        errorCode = "migration_network_required",
+                    )
+            }
+        }
+
+        return when (val result = api.validate(stored.activationToken, deviceId)) {
+            is LicenseApiResult.Success ->
+                saveAndBuildActive(result.activation)
+            is LicenseApiResult.Rejected ->
+                rejectedState("", result)
+            LicenseApiResult.NetworkError ->
+                networkState("")
+        }
+    }
+
+    suspend fun deactivate(): LicenseUiState {
+        val stored = preferences.read()
             ?: return LicenseUiState(access = LicenseAccess.ACTIVATION_REQUIRED)
 
-        return when (val result = api.validate(stored.licenseKey, deviceId)) {
-            is LicenseApiResult.Success -> saveAndBuildActive(stored.licenseKey, result.activation)
-            is LicenseApiResult.Rejected -> rejectedState(stored.licenseKey, result)
-            LicenseApiResult.NetworkError -> networkState(stored.licenseKey)
+        return when (val result = api.deactivate(stored.activationToken, deviceId)) {
+            is LicenseDeactivateResult.Success -> {
+                preferences.clear()
+                LicenseUiState(access = LicenseAccess.ACTIVATION_REQUIRED)
+            }
+            is LicenseDeactivateResult.Rejected -> {
+                if (
+                    result.code == "device_not_activated" ||
+                    result.code == "invalid_activation_token" ||
+                    result.code == "token_device_mismatch"
+                ) {
+                    preferences.clear()
+                    LicenseUiState(
+                        access = LicenseAccess.ACTIVATION_REQUIRED,
+                        errorCode = result.code,
+                    )
+                } else {
+                    localState().copy(errorCode = result.code)
+                }
+            }
+            LicenseDeactivateResult.NetworkError ->
+                localState().copy(errorCode = "deactivate_network")
         }
     }
 
@@ -97,12 +186,17 @@ class LicenseRepository(
         val now = System.currentTimeMillis()
         val stored = preferences.read()
 
-        val canUseGrace = stored != null &&
-            stored.licenseKey == key &&
-            now < stored.expiresAtEpochMillis &&
-            stored.lastValidatedAtMillis > 0L &&
-            now >= stored.lastObservedAtMillis - CLOCK_ROLLBACK_TOLERANCE_MS &&
-            now - stored.lastValidatedAtMillis <= OFFLINE_GRACE_MS
+        val canUseGrace =
+            stored != null &&
+                now < stored.expiresAtEpochMillis &&
+                stored.lastValidatedAtMillis > 0L &&
+                now >= stored.lastObservedAtMillis - CLOCK_ROLLBACK_TOLERANCE_MS &&
+                now - stored.lastValidatedAtMillis <= OFFLINE_GRACE_MS &&
+                ActivationTokenVerifier.verify(
+                    token = stored.activationToken,
+                    expectedDeviceId = deviceId,
+                    nowMillis = now,
+                ) != null
 
         return if (canUseGrace) {
             preferences.markObserved(now)
@@ -116,6 +210,7 @@ class LicenseRepository(
             LicenseUiState(
                 access = LicenseAccess.NEEDS_INTERNET,
                 licenseKey = key,
+                licenseHint = stored?.licenseHint.orEmpty(),
                 expiresAt = stored?.expiresAt,
                 maxDevices = stored?.maxDevices ?: 3,
                 activeDevices = stored?.activeDevices ?: 0,
@@ -134,17 +229,30 @@ class LicenseRepository(
             "license_inactive" -> LicenseAccess.INACTIVE
             "device_limit_reached" -> LicenseAccess.DEVICE_LIMIT
             "device_not_activated" -> LicenseAccess.ACTIVATION_REQUIRED
+            "invalid_activation_token",
+            "token_device_mismatch",
+            -> LicenseAccess.ACTIVATION_REQUIRED
             "license_not_found",
             "license_key_required",
+            "activation_token_required",
             "invalid_json",
             "invalid_server_response",
             -> LicenseAccess.INVALID
             else -> LicenseAccess.INVALID
         }
 
+        if (
+            result.code == "device_not_activated" ||
+            result.code == "invalid_activation_token" ||
+            result.code == "token_device_mismatch"
+        ) {
+            preferences.clear()
+        }
+
         return LicenseUiState(
             access = access,
             licenseKey = key,
+            licenseHint = stored?.licenseHint.orEmpty(),
             expiresAt = result.expiresAt ?: stored?.expiresAt,
             maxDevices = result.maxDevices ?: stored?.maxDevices ?: 3,
             activeDevices = result.activeDevices ?: stored?.activeDevices ?: 0,
@@ -153,30 +261,57 @@ class LicenseRepository(
     }
 
     private fun saveAndBuildActive(
-        key: String,
         activation: LicenseActivation,
+        enteredKey: String? = null,
     ): LicenseUiState {
         val expiryMillis = parseExpiryMillis(activation.expiresAt)
             ?: return LicenseUiState(
                 access = LicenseAccess.INVALID,
-                licenseKey = key,
+                licenseKey = enteredKey.orEmpty(),
                 errorCode = "invalid_expiry",
             )
 
+        val verified = ActivationTokenVerifier.verify(
+            token = activation.activationToken,
+            expectedDeviceId = deviceId,
+        ) ?: return LicenseUiState(
+            access = LicenseAccess.INVALID,
+            licenseKey = enteredKey.orEmpty(),
+            errorCode = "invalid_activation_token",
+        )
+
+        if (abs(verified.expiresAtEpochMillis - expiryMillis) > EXPIRY_MATCH_TOLERANCE_MS) {
+            return LicenseUiState(
+                access = LicenseAccess.INVALID,
+                licenseKey = enteredKey.orEmpty(),
+                errorCode = "token_expiry_mismatch",
+            )
+        }
+
+        val trustedActivation = activation.copy(
+            licenseHint = verified.licenseHint,
+            maxDevices = verified.maxDevices,
+        )
+
         val now = System.currentTimeMillis()
-        preferences.saveValidated(
-            licenseKey = key,
-            activation = activation,
-            expiresAtEpochMillis = expiryMillis,
+        val saved = preferences.saveValidated(
+            activation = trustedActivation,
+            expiresAtEpochMillis = verified.expiresAtEpochMillis,
             nowMillis = now,
         )
+        if (!saved) {
+            return LicenseUiState(
+                access = LicenseAccess.INVALID,
+                errorCode = "secure_store_failed",
+            )
+        }
 
         return LicenseUiState(
             access = LicenseAccess.ACTIVE,
-            licenseKey = key,
-            expiresAt = activation.expiresAt,
-            maxDevices = activation.maxDevices,
-            activeDevices = activation.activeDevices,
+            licenseHint = trustedActivation.licenseHint,
+            expiresAt = trustedActivation.expiresAt,
+            maxDevices = trustedActivation.maxDevices,
+            activeDevices = trustedActivation.activeDevices,
         )
     }
 
@@ -188,7 +323,7 @@ class LicenseRepository(
     ): LicenseUiState =
         LicenseUiState(
             access = access,
-            licenseKey = stored.licenseKey,
+            licenseHint = stored.licenseHint,
             expiresAt = stored.expiresAt,
             maxDevices = stored.maxDevices,
             activeDevices = stored.activeDevices,
@@ -225,5 +360,6 @@ class LicenseRepository(
         private const val VALIDATION_INTERVAL_MS = 24L * 60L * 60L * 1000L
         private const val OFFLINE_GRACE_MS = 7L * 24L * 60L * 60L * 1000L
         private const val CLOCK_ROLLBACK_TOLERANCE_MS = 5L * 60L * 1000L
+        private const val EXPIRY_MATCH_TOLERANCE_MS = 2_000L
     }
 }

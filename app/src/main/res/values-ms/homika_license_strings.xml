@@ -6,7 +6,7 @@
     <string name="license_checking_body">Homika sedang mengesahkan peranti ini. Biasanya hanya mengambil masa seketika.</string>
     <string name="license_activate_title">Aktifkan Homika Pro</string>
     <string name="license_activate_body">Masukkan kod lesen yang diterima bersama pembelian Homika Pro.</string>
-    <string name="license_code">Kod lesen</string>
+    <string name="license_code">Lesen</string>
     <string name="license_activate_button">Aktifkan lesen</string>
     <string name="license_retry">Cuba semak semula</string>
     <string name="license_device_allowance">Sehingga %1$d peranti untuk lesen ini</string>
@@ -21,4 +21,25 @@
     <string name="license_error_device_limit_body">Lesen ini sedang menggunakan %1$d daripada %2$d peranti. Nyahaktifkan peranti lama sebelum mengaktifkan peranti ini.</string>
     <string name="license_error_invalid">Lesen tidak diterima</string>
     <string name="license_error_invalid_body">Semak kod lesen dan cuba lagi.</string>
+
+    <string name="license_settings_title">Lesen Homika Pro</string>
+    <string name="license_settings_supporting">Lesen, tarikh tamat dan peranti</string>
+    <string name="license_settings_active">Aktif</string>
+    <string name="license_manage_title">Lesen Homika Pro</string>
+    <string name="license_manage_subtitle">Urus peranti ini dan semak status langganan.</string>
+    <string name="license_back">Kembali</string>
+    <string name="license_active_title">Lesen aktif</string>
+    <string name="license_active_verified">Disahkan dengan pelayan lesen Homika.</string>
+    <string name="license_active_offline">Sedang menggunakan tempoh offline 7 hari.</string>
+    <string name="license_expires">Tamat pada</string>
+    <string name="license_devices">Peranti</string>
+    <string name="license_devices_value">%1$d daripada %2$d aktif</string>
+    <string name="license_unknown">Tidak diketahui</string>
+    <string name="license_verify_now">Semak sekarang</string>
+    <string name="license_deactivate_device">Nyahaktifkan peranti ini</string>
+    <string name="license_deactivate_note">Nyahaktif akan mengosongkan satu slot peranti. Data Homika lokal anda tidak akan dipadam.</string>
+    <string name="license_deactivate_confirm_title">Nyahaktifkan peranti ini?</string>
+    <string name="license_deactivate_confirm_body">Homika Pro akan kembali ke skrin pengaktifan pada peranti ini. Data hartanah dan tempahan lokal kekal pada peranti.</string>
+    <string name="license_deactivate_confirm">Nyahaktif</string>
+    <string name="license_deactivate_network">Tidak dapat nyahaktif kerana pelayan lesen tidak dapat dicapai. Sambungkan internet dan cuba lagi.</string>
 </resources>

@@ -14,6 +14,7 @@ enum class LicenseAccess {
 data class LicenseUiState(
     val access: LicenseAccess = LicenseAccess.CHECKING,
     val licenseKey: String = "",
+    val licenseHint: String = "",
     val expiresAt: String? = null,
     val maxDevices: Int = 3,
     val activeDevices: Int = 0,
@@ -23,7 +24,8 @@ data class LicenseUiState(
 )
 
 data class StoredLicense(
-    val licenseKey: String,
+    val activationToken: String,
+    val licenseHint: String,
     val expiresAt: String,
     val expiresAtEpochMillis: Long,
     val maxDevices: Int,
@@ -33,6 +35,8 @@ data class StoredLicense(
 )
 
 data class LicenseActivation(
+    val activationToken: String,
+    val licenseHint: String,
     val expiresAt: String,
     val maxDevices: Int,
     val activeDevices: Int,
@@ -52,3 +56,22 @@ sealed interface LicenseApiResult {
 
     data object NetworkError : LicenseApiResult
 }
+
+sealed interface LicenseDeactivateResult {
+    data class Success(
+        val maxDevices: Int,
+        val activeDevices: Int,
+    ) : LicenseDeactivateResult
+
+    data class Rejected(
+        val code: String,
+    ) : LicenseDeactivateResult
+
+    data object NetworkError : LicenseDeactivateResult
+}
+
+data class VerifiedActivationToken(
+    val expiresAtEpochMillis: Long,
+    val licenseHint: String,
+    val maxDevices: Int,
+)

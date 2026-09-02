@@ -14,7 +14,7 @@ class LicenseApiClient(
         deviceId: String,
         deviceName: String,
     ): LicenseApiResult =
-        post(
+        postActivation(
             path = "/v1/licenses/activate",
             payload = JSONObject()
                 .put("license_key", licenseKey)
@@ -23,20 +23,102 @@ class LicenseApiClient(
         )
 
     suspend fun validate(
-        licenseKey: String,
+        activationToken: String,
         deviceId: String,
     ): LicenseApiResult =
-        post(
+        postActivation(
             path = "/v1/licenses/validate",
             payload = JSONObject()
-                .put("license_key", licenseKey)
+                .put("activation_token", activationToken)
                 .put("device_id", deviceId),
         )
 
-    private suspend fun post(
+    suspend fun deactivate(
+        activationToken: String,
+        deviceId: String,
+    ): LicenseDeactivateResult = withContext(Dispatchers.IO) {
+        val response = postRaw(
+            path = "/v1/licenses/deactivate",
+            payload = JSONObject()
+                .put("activation_token", activationToken)
+                .put("device_id", deviceId),
+        )
+
+        when (response) {
+            RawResponse.NetworkError -> LicenseDeactivateResult.NetworkError
+            is RawResponse.Http -> {
+                val json = response.json
+                if (response.status in 200..299 && json?.optBoolean("ok", false) == true) {
+                    LicenseDeactivateResult.Success(
+                        maxDevices = json.optInt("max_devices", 3).coerceAtLeast(1),
+                        activeDevices = json.optInt("active_devices", 0).coerceAtLeast(0),
+                    )
+                } else if (response.status >= 500) {
+                    LicenseDeactivateResult.NetworkError
+                } else {
+                    LicenseDeactivateResult.Rejected(
+                        code = json?.optString("error", "license_rejected")
+                            ?.ifBlank { "license_rejected" }
+                            ?: "invalid_server_response",
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun postActivation(
         path: String,
         payload: JSONObject,
     ): LicenseApiResult = withContext(Dispatchers.IO) {
+        when (val response = postRaw(path, payload)) {
+            RawResponse.NetworkError -> LicenseApiResult.NetworkError
+            is RawResponse.Http -> {
+                val json = response.json
+
+                if (response.status in 200..299 && json?.optBoolean("ok", false) == true) {
+                    val activation = json.optJSONObject("activation")
+                        ?: return@withContext LicenseApiResult.Rejected("invalid_server_response")
+
+                    val token = activation.optString("activation_token").trim()
+                    val expiresAt = activation.optString("expires_at").trim()
+                    if (token.isBlank() || expiresAt.isBlank()) {
+                        return@withContext LicenseApiResult.Rejected("invalid_server_response")
+                    }
+
+                    return@withContext LicenseApiResult.Success(
+                        LicenseActivation(
+                            activationToken = token,
+                            licenseHint = activation.optString("license_hint", "••••")
+                                .ifBlank { "••••" },
+                            expiresAt = expiresAt,
+                            maxDevices = activation.optInt("max_devices", 3).coerceAtLeast(1),
+                            activeDevices = activation.optInt("active_devices", 0).coerceAtLeast(0),
+                        ),
+                    )
+                }
+
+                if (response.status >= 500) {
+                    return@withContext LicenseApiResult.NetworkError
+                }
+
+                val error = json?.optString("error", "license_rejected")
+                    ?.ifBlank { "license_rejected" }
+                    ?: "invalid_server_response"
+
+                LicenseApiResult.Rejected(
+                    code = error,
+                    expiresAt = json?.optString("expires_at")?.takeIf { it.isNotBlank() },
+                    maxDevices = json?.optInt("max_devices", -1)?.takeIf { it >= 0 },
+                    activeDevices = json?.optInt("active_devices", -1)?.takeIf { it >= 0 },
+                )
+            }
+        }
+    }
+
+    private fun postRaw(
+        path: String,
+        payload: JSONObject,
+    ): RawResponse {
         val connection = runCatching {
             (URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -48,10 +130,10 @@ class LicenseApiClient(
                 setRequestProperty("Accept", "application/json")
             }
         }.getOrElse {
-            return@withContext LicenseApiResult.NetworkError
+            return RawResponse.NetworkError
         }
 
-        try {
+        return try {
             connection.outputStream.use { stream ->
                 stream.write(payload.toString().toByteArray(Charsets.UTF_8))
             }
@@ -66,53 +148,25 @@ class LicenseApiClient(
                 source?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             }.getOrDefault("")
 
-            if (body.isBlank()) {
-                return@withContext if (status in 500..599) {
-                    LicenseApiResult.NetworkError
-                } else {
-                    LicenseApiResult.Rejected("invalid_server_response")
-                }
-            }
+            val json = body
+                .takeIf { it.isNotBlank() }
+                ?.let { raw -> runCatching { JSONObject(raw) }.getOrNull() }
 
-            val json = runCatching { JSONObject(body) }.getOrNull()
-                ?: return@withContext LicenseApiResult.Rejected("invalid_server_response")
-
-            if (status in 200..299 && json.optBoolean("ok", false)) {
-                val activation = json.optJSONObject("activation")
-                    ?: return@withContext LicenseApiResult.Rejected("invalid_server_response")
-
-                val expiresAt = activation.optString("expires_at").trim()
-                if (expiresAt.isBlank()) {
-                    return@withContext LicenseApiResult.Rejected("invalid_server_response")
-                }
-
-                return@withContext LicenseApiResult.Success(
-                    LicenseActivation(
-                        expiresAt = expiresAt,
-                        maxDevices = activation.optInt("max_devices", 3).coerceAtLeast(1),
-                        activeDevices = activation.optInt("active_devices", 0).coerceAtLeast(0),
-                    ),
-                )
-            }
-
-            val error = json.optString("error", "license_rejected")
-                .ifBlank { "license_rejected" }
-
-            if (status >= 500) {
-                return@withContext LicenseApiResult.NetworkError
-            }
-
-            LicenseApiResult.Rejected(
-                code = error,
-                expiresAt = json.optString("expires_at").takeIf { it.isNotBlank() },
-                maxDevices = json.optInt("max_devices", -1).takeIf { it >= 0 },
-                activeDevices = json.optInt("active_devices", -1).takeIf { it >= 0 },
-            )
+            RawResponse.Http(status = status, json = json)
         } catch (_: Exception) {
-            LicenseApiResult.NetworkError
+            RawResponse.NetworkError
         } finally {
             connection.disconnect()
         }
+    }
+
+    private sealed interface RawResponse {
+        data class Http(
+            val status: Int,
+            val json: JSONObject?,
+        ) : RawResponse
+
+        data object NetworkError : RawResponse
     }
 
     private companion object {

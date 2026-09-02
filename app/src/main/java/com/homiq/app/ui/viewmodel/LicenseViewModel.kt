@@ -24,7 +24,6 @@ class LicenseViewModel(
 
     fun activate(licenseKey: String) {
         if (mutableState.value.busy) return
-
         mutableState.value = mutableState.value.copy(
             busy = true,
             errorCode = null,
@@ -37,22 +36,33 @@ class LicenseViewModel(
 
     fun retry() {
         if (mutableState.value.busy) return
-
-        val hasStoredKey = mutableState.value.licenseKey.isNotBlank()
-        if (!hasStoredKey) {
-            mutableState.value = LicenseUiState(
-                access = LicenseAccess.ACTIVATION_REQUIRED,
-            )
-            return
-        }
-
         refresh(forceBusy = true)
+    }
+
+    fun refreshNow() {
+        if (mutableState.value.busy) return
+        refresh(forceBusy = true)
+    }
+
+    fun deactivate() {
+        if (mutableState.value.busy) return
+        mutableState.value = mutableState.value.copy(
+            busy = true,
+            errorCode = null,
+        )
+
+        viewModelScope.launch {
+            mutableState.value = repository.deactivate().copy(busy = false)
+        }
     }
 
     private fun refresh(forceBusy: Boolean = false) {
         if (mutableState.value.busy) return
 
-        if (forceBusy || mutableState.value.access != LicenseAccess.ACTIVE) {
+        if (
+            forceBusy ||
+            mutableState.value.access != LicenseAccess.ACTIVE
+        ) {
             mutableState.value = mutableState.value.copy(
                 busy = true,
                 errorCode = null,

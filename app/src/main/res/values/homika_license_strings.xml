@@ -6,7 +6,7 @@
     <string name="license_checking_body">Homika is verifying this device. This normally takes only a moment.</string>
     <string name="license_activate_title">Activate Homika Pro</string>
     <string name="license_activate_body">Enter the licence code issued with your Homika Pro purchase.</string>
-    <string name="license_code">Licence code</string>
+    <string name="license_code">Licence</string>
     <string name="license_activate_button">Activate licence</string>
     <string name="license_retry">Try verification again</string>
     <string name="license_device_allowance">Up to %1$d devices for this licence</string>
@@ -21,4 +21,25 @@
     <string name="license_error_device_limit_body">This licence currently has %1$d of %2$d devices active. Deactivate an old device before activating this one.</string>
     <string name="license_error_invalid">Licence not accepted</string>
     <string name="license_error_invalid_body">Check the licence code and try again.</string>
+
+    <string name="license_settings_title">Homika Pro licence</string>
+    <string name="license_settings_supporting">Licence, expiry and devices</string>
+    <string name="license_settings_active">Active</string>
+    <string name="license_manage_title">Homika Pro licence</string>
+    <string name="license_manage_subtitle">Manage this device and verify your subscription.</string>
+    <string name="license_back">Back</string>
+    <string name="license_active_title">Licence active</string>
+    <string name="license_active_verified">Verified with the Homika licence server.</string>
+    <string name="license_active_offline">Working inside the 7-day offline grace period.</string>
+    <string name="license_expires">Expires</string>
+    <string name="license_devices">Devices</string>
+    <string name="license_devices_value">%1$d of %2$d active</string>
+    <string name="license_unknown">Unknown</string>
+    <string name="license_verify_now">Verify now</string>
+    <string name="license_deactivate_device">Deactivate this device</string>
+    <string name="license_deactivate_note">Deactivating frees one device slot. Your local Homika data is not deleted.</string>
+    <string name="license_deactivate_confirm_title">Deactivate this device?</string>
+    <string name="license_deactivate_confirm_body">Homika Pro will return to the activation screen on this device. Local property and booking data will remain on the device.</string>
+    <string name="license_deactivate_confirm">Deactivate</string>
+    <string name="license_deactivate_network">Could not deactivate because the licence server is unreachable. Connect to the internet and try again.</string>
 </resources>
