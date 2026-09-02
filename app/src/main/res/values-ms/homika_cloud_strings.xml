@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cloud_backup_page_subtitle">Data kekal local-first, dengan backup Homika Cloud yang dienkripsi apabila diperlukan.</string>
+    <string name="cloud_backup_title">Homika Cloud</string>
+    <string name="cloud_backup_body">Buat backup cloud terenkripsi yang terikat kepada lesen Homika Pro aktif. Backup dienkripsi pada peranti ini sebelum dihantar.</string>
+    <string name="cloud_latest_backup">Backup cloud terkini</string>
+    <string name="cloud_checking">Sedang menyemak…</string>
+    <string name="cloud_no_backup">Belum ada backup cloud</string>
+    <string name="cloud_latest_summary">%1$s · %2$d rekod · %3$s</string>
+    <string name="cloud_backup_now">Backup ke Homika Cloud</string>
+    <string name="cloud_restore_latest">Pulihkan backup cloud terkini</string>
+    <string name="cloud_encryption_note">Homika memampat dan mengenkripsi backup dengan AES-256-GCM sebelum upload. Storan cloud hanya menerima fail backup yang telah dienkripsi.</string>
+    <string name="cloud_phase_one_note">Cloud Backup Fasa 1 dibuat secara manual. Backup automatik di latar belakang dan sync multi-peranti secara langsung akan ditambah dalam fasa seterusnya.</string>
+    <string name="local_backup_title">Backup lokal mudah alih</string>
+
+    <string name="cloud_backup_success_title">Backup cloud selesai</string>
+    <string name="cloud_backup_success_body">%1$d rekod Homika telah dienkripsi dan dibackup ke Homika Cloud.</string>
+    <string name="cloud_restore_success_title">Pemulihan cloud selesai</string>
+
+    <string name="cloud_error_title">Operasi Homika Cloud gagal</string>
+    <string name="cloud_error_license">Lesen Homika Pro aktif tidak dapat disahkan untuk akses cloud. Sahkan lesen dan cuba lagi.</string>
+    <string name="cloud_error_network">Homika tidak dapat menghubungi Homika Cloud. Semak sambungan internet dan cuba lagi.</string>
+    <string name="cloud_error_not_configured">Storan Homika Cloud belum dikonfigurasi pada server.</string>
+    <string name="cloud_error_not_found">Belum ada backup cloud untuk lesen ini.</string>
+    <string name="cloud_error_too_large">Saiz backup ini melebihi had backup Homika Cloud semasa.</string>
+    <string name="cloud_error_invalid">Backup cloud yang dimuat turun tidak dapat dinyahsulit atau tidak sah.</string>
+    <string name="cloud_error_rejected">Permintaan Homika Cloud ditolak oleh server.</string>
+    <string name="cloud_error_server">Homika Cloud mengalami ralat server. Cuba semula sebentar lagi.</string>
+</resources>

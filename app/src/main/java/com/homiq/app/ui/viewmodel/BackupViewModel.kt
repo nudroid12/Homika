@@ -12,6 +12,10 @@ import com.homiq.app.data.backup.BackupReadResult
 import com.homiq.app.data.backup.BackupRestoreResult
 import com.homiq.app.data.backup.BackupWriteResult
 import com.homiq.app.data.backup.HomiqBackupService
+import com.homiq.app.data.cloud.CloudBackupFailureReason
+import com.homiq.app.data.cloud.CloudBackupMetadata
+import com.homiq.app.data.cloud.HomikaCloudBackupService
+import com.homiq.app.data.cloud.PreparedCloudRestore
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +25,7 @@ import kotlinx.coroutines.launch
 
 data class BackupUiState(
     val isBusy: Boolean = false,
+    val isCloudRefreshing: Boolean = false,
     val history: BackupHistory =
         BackupHistory(
             lastBackupEpochMillis = null,
@@ -28,6 +33,7 @@ data class BackupUiState(
         ),
     val lastBackupDestination: BackupDestination? = null,
     val lastRestoreSource: BackupDestination? = null,
+    val cloudLatest: CloudBackupMetadata? = null,
     val pendingRestorePreview: BackupPreview? = null,
     val message: BackupUiMessage? = null,
 )
@@ -37,43 +43,102 @@ sealed interface BackupUiMessage {
         val preview: BackupPreview,
     ) : BackupUiMessage
 
+    data class CloudBackupCreated(
+        val preview: BackupPreview,
+    ) : BackupUiMessage
+
     data class RestoreCompleted(
         val preview: BackupPreview,
+        val source: BackupDestination,
     ) : BackupUiMessage
 
     data class Failure(
         val reason: BackupFailureReason,
+    ) : BackupUiMessage
+
+    data class CloudFailure(
+        val reason: CloudBackupFailureReason,
     ) : BackupUiMessage
 }
 
 class BackupViewModel(
     private val service: HomiqBackupService,
     private val backupPreferences: BackupPreferences,
+    private val cloudService: HomikaCloudBackupService,
 ) : ViewModel() {
     private var pendingFileRestoreUri: Uri? = null
+    private var pendingCloudRestore: PreparedCloudRestore? = null
 
     private val mutableState =
         MutableStateFlow(
             BackupUiState(
                 history = service.history(),
-                lastBackupDestination =
-                    backupPreferences.lastBackupDestination,
-                lastRestoreSource =
-                    backupPreferences.lastRestoreSource,
+                lastBackupDestination = backupPreferences.lastBackupDestination,
+                lastRestoreSource = backupPreferences.lastRestoreSource,
             ),
         )
 
-    val state: StateFlow<BackupUiState> =
-        mutableState.asStateFlow()
+    val state: StateFlow<BackupUiState> = mutableState.asStateFlow()
+
+    init {
+        refreshCloud()
+    }
 
     fun backupFileName(): String {
         val stamp =
             LocalDateTime.now().format(
-                DateTimeFormatter.ofPattern(
-                    "yyyyMMdd-HHmm",
-                ),
+                DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"),
             )
         return "Homika-backup-$stamp.homika"
+    }
+
+    fun refreshCloud() {
+        viewModelScope.launch {
+            mutableState.value = mutableState.value.copy(isCloudRefreshing = true)
+            val result = cloudService.latest()
+            mutableState.value = mutableState.value.copy(
+                isCloudRefreshing = false,
+                cloudLatest = if (result.isSuccess) result.value else mutableState.value.cloudLatest,
+            )
+        }
+    }
+
+    fun createCloudBackup() {
+        viewModelScope.launch {
+            updateBusy(true)
+            val result = cloudService.backupNow()
+            val success = result.value
+            if (success != null) {
+                val (metadata, preview) = success
+                backupPreferences.recordBackup(BackupDestination.HOMIKA_CLOUD)
+                mutableState.value = mutableState.value.copy(
+                    isBusy = false,
+                    cloudLatest = metadata,
+                    lastBackupDestination = BackupDestination.HOMIKA_CLOUD,
+                    message = BackupUiMessage.CloudBackupCreated(preview),
+                )
+            } else {
+                cloudFail(result.failure ?: CloudBackupFailureReason.SERVER_ERROR)
+            }
+        }
+    }
+
+    fun inspectCloudRestore() {
+        viewModelScope.launch {
+            updateBusy(true)
+            val result = cloudService.prepareLatestRestore()
+            val prepared = result.value
+            if (prepared != null) {
+                pendingFileRestoreUri = null
+                pendingCloudRestore = prepared
+                mutableState.value = mutableState.value.copy(
+                    isBusy = false,
+                    pendingRestorePreview = prepared.preview,
+                )
+            } else {
+                cloudFail(result.failure ?: CloudBackupFailureReason.SERVER_ERROR)
+            }
+        }
     }
 
     fun createBackup(uri: Uri?) {
@@ -83,25 +148,15 @@ class BackupViewModel(
             updateBusy(true)
             when (val result = service.writeBackup(uri)) {
                 is BackupWriteResult.Success -> {
-                    backupPreferences.recordBackup(
-                        BackupDestination.DEVICE_FILE,
+                    backupPreferences.recordBackup(BackupDestination.DEVICE_FILE)
+                    mutableState.value = mutableState.value.copy(
+                        isBusy = false,
+                        history = service.history(),
+                        lastBackupDestination = BackupDestination.DEVICE_FILE,
+                        message = BackupUiMessage.BackupCreated(result.preview),
                     )
-                    mutableState.value =
-                        mutableState.value.copy(
-                            isBusy = false,
-                            history = service.history(),
-                            lastBackupDestination =
-                                BackupDestination.DEVICE_FILE,
-                            message =
-                                BackupUiMessage.BackupCreated(
-                                    result.preview,
-                                ),
-                        )
                 }
-
-                is BackupWriteResult.Failure -> {
-                    fail(result.reason)
-                }
+                is BackupWriteResult.Failure -> fail(result.reason)
             }
         }
     }
@@ -113,83 +168,88 @@ class BackupViewModel(
             updateBusy(true)
             when (val result = service.inspectBackup(uri)) {
                 is BackupReadResult.Success -> {
+                    pendingCloudRestore = null
                     pendingFileRestoreUri = uri
-                    mutableState.value =
-                        mutableState.value.copy(
-                            isBusy = false,
-                            pendingRestorePreview =
-                                result.preview,
-                        )
+                    mutableState.value = mutableState.value.copy(
+                        isBusy = false,
+                        pendingRestorePreview = result.preview,
+                    )
                 }
-
-                is BackupReadResult.Failure -> {
-                    fail(result.reason)
-                }
+                is BackupReadResult.Failure -> fail(result.reason)
             }
         }
     }
 
     fun confirmRestore() {
-        val uri = pendingFileRestoreUri ?: return
+        val cloud = pendingCloudRestore
+        val file = pendingFileRestoreUri
+        if (cloud == null && file == null) return
 
         viewModelScope.launch {
             updateBusy(true)
-            when (val result = service.restoreBackup(uri)) {
-                is BackupRestoreResult.Success -> {
-                    backupPreferences.recordRestore(
-                        BackupDestination.DEVICE_FILE,
-                    )
-                    pendingFileRestoreUri = null
-                    mutableState.value =
-                        mutableState.value.copy(
-                            isBusy = false,
-                            history = service.history(),
-                            lastRestoreSource =
-                                BackupDestination.DEVICE_FILE,
-                            pendingRestorePreview = null,
-                            message =
-                                BackupUiMessage.RestoreCompleted(
-                                    result.preview,
-                                ),
-                        )
-                }
+            val source: BackupDestination
+            val result: BackupRestoreResult
 
-                is BackupRestoreResult.Failure -> {
-                    fail(result.reason)
+            if (cloud != null) {
+                source = BackupDestination.HOMIKA_CLOUD
+                result = service.restoreSnapshot(cloud.snapshot)
+            } else {
+                source = BackupDestination.DEVICE_FILE
+                result = service.restoreBackup(file!!)
+            }
+
+            when (result) {
+                is BackupRestoreResult.Success -> {
+                    backupPreferences.recordRestore(source)
+                    pendingFileRestoreUri = null
+                    pendingCloudRestore = null
+                    mutableState.value = mutableState.value.copy(
+                        isBusy = false,
+                        history = service.history(),
+                        lastRestoreSource = source,
+                        pendingRestorePreview = null,
+                        message = BackupUiMessage.RestoreCompleted(
+                            preview = result.preview,
+                            source = source,
+                        ),
+                    )
                 }
+                is BackupRestoreResult.Failure -> fail(result.reason)
             }
         }
     }
 
     fun cancelRestore() {
         pendingFileRestoreUri = null
-        mutableState.value =
-            mutableState.value.copy(
-                pendingRestorePreview = null,
-            )
+        pendingCloudRestore = null
+        mutableState.value = mutableState.value.copy(pendingRestorePreview = null)
     }
 
     fun clearMessage() {
-        mutableState.value =
-            mutableState.value.copy(
-                message = null,
-            )
+        mutableState.value = mutableState.value.copy(message = null)
     }
 
     private fun updateBusy(busy: Boolean) {
-        mutableState.value =
-            mutableState.value.copy(
-                isBusy = busy,
-                message = null,
-            )
+        mutableState.value = mutableState.value.copy(
+            isBusy = busy,
+            message = null,
+        )
     }
 
     private fun fail(reason: BackupFailureReason) {
-        mutableState.value =
-            mutableState.value.copy(
-                isBusy = false,
-                pendingRestorePreview = null,
-                message = BackupUiMessage.Failure(reason),
-            )
+        mutableState.value = mutableState.value.copy(
+            isBusy = false,
+            pendingRestorePreview = null,
+            message = BackupUiMessage.Failure(reason),
+        )
+    }
+
+    private fun cloudFail(reason: CloudBackupFailureReason) {
+        pendingCloudRestore = null
+        mutableState.value = mutableState.value.copy(
+            isBusy = false,
+            pendingRestorePreview = null,
+            message = BackupUiMessage.CloudFailure(reason),
+        )
     }
 }

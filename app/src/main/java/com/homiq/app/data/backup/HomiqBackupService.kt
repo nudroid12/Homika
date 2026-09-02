@@ -24,25 +24,7 @@ class HomiqBackupService(
         uri: Uri,
     ): BackupWriteResult =
         runCatching {
-            val snapshot =
-                database.withTransaction {
-                    HomiqBackupSnapshot(
-                        createdAtEpochMillis =
-                            System.currentTimeMillis(),
-                        properties =
-                            dao.allProperties(),
-                        bookings =
-                            dao.allBookings(),
-                        payments =
-                            dao.allPayments(),
-                        deposits =
-                            dao.allDeposits(),
-                        expenses =
-                            dao.allExpenses(),
-                        blockedDates =
-                            dao.allBlockedDates(),
-                    )
-                }
+            val snapshot = captureSnapshot()
 
             val encoded =
                 HomiqBackupCodec.encode(snapshot)
@@ -116,50 +98,49 @@ class HomiqBackupService(
                 )
         }
 
-        return runCatching {
-            database.withTransaction {
-                dao.clearPayments()
-                dao.clearDeposits()
-                dao.clearBlockedDates()
-                dao.clearBookings()
-                dao.clearExpenses()
-                dao.clearProperties()
+        return restoreSnapshot(snapshot)
+    }
 
-                dao.upsertProperties(
-                    snapshot.properties,
-                )
-                dao.upsertBookings(
-                    snapshot.bookings,
-                )
-                dao.upsertPayments(
-                    snapshot.payments,
-                )
-                dao.upsertDeposits(
-                    snapshot.deposits,
-                )
-                dao.upsertExpenses(
-                    snapshot.expenses,
-                )
-                dao.upsertBlockedDates(
-                    snapshot.blockedDates,
-                )
-            }
-
-            preferences.edit()
-                .putLong(
-                    KEY_LAST_RESTORE,
-                    System.currentTimeMillis(),
-                )
-                .apply()
-
-            BackupRestoreResult.Success(
-                HomiqBackupCodec.preview(snapshot),
-            )
-        }.getOrElse {
-            BackupRestoreResult.Failure(
-                BackupFailureReason.RESTORE_FAILED,
+    suspend fun captureSnapshot(): HomiqBackupSnapshot =
+        database.withTransaction {
+            HomiqBackupSnapshot(
+                createdAtEpochMillis = System.currentTimeMillis(),
+                properties = dao.allProperties(),
+                bookings = dao.allBookings(),
+                payments = dao.allPayments(),
+                deposits = dao.allDeposits(),
+                expenses = dao.allExpenses(),
+                blockedDates = dao.allBlockedDates(),
             )
         }
+
+    suspend fun restoreSnapshot(
+        snapshot: HomiqBackupSnapshot,
+    ): BackupRestoreResult = runCatching {
+        validate(snapshot)
+        database.withTransaction {
+            dao.clearPayments()
+            dao.clearDeposits()
+            dao.clearBlockedDates()
+            dao.clearBookings()
+            dao.clearExpenses()
+            dao.clearProperties()
+
+            dao.upsertProperties(snapshot.properties)
+            dao.upsertBookings(snapshot.bookings)
+            dao.upsertPayments(snapshot.payments)
+            dao.upsertDeposits(snapshot.deposits)
+            dao.upsertExpenses(snapshot.expenses)
+            dao.upsertBlockedDates(snapshot.blockedDates)
+        }
+
+        preferences.edit()
+            .putLong(KEY_LAST_RESTORE, System.currentTimeMillis())
+            .apply()
+
+        BackupRestoreResult.Success(HomiqBackupCodec.preview(snapshot))
+    }.getOrElse {
+        BackupRestoreResult.Failure(BackupFailureReason.RESTORE_FAILED)
     }
 
     fun history(): BackupHistory =

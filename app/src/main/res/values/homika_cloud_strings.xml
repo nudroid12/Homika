@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cloud_backup_page_subtitle">Keep local control of your data, with an encrypted Homika Cloud backup when you need it.</string>
+    <string name="cloud_backup_title">Homika Cloud</string>
+    <string name="cloud_backup_body">Create an encrypted cloud backup tied to your active Homika Pro licence. The backup is encrypted on this device before it is uploaded.</string>
+    <string name="cloud_latest_backup">Latest cloud backup</string>
+    <string name="cloud_checking">Checking…</string>
+    <string name="cloud_no_backup">No cloud backup yet</string>
+    <string name="cloud_latest_summary">%1$s · %2$d records · %3$s</string>
+    <string name="cloud_backup_now">Back up to Homika Cloud</string>
+    <string name="cloud_restore_latest">Restore latest cloud backup</string>
+    <string name="cloud_encryption_note">Homika compresses and encrypts the backup with AES-256-GCM before upload. Cloud storage receives only the encrypted backup blob.</string>
+    <string name="cloud_phase_one_note">Cloud Backup Phase 1 is manual. Automatic background backup and live multi-device sync will be added in the next phases.</string>
+    <string name="local_backup_title">Portable local backup</string>
+
+    <string name="cloud_backup_success_title">Cloud backup complete</string>
+    <string name="cloud_backup_success_body">%1$d Homika records were encrypted and backed up to Homika Cloud.</string>
+    <string name="cloud_restore_success_title">Cloud restore complete</string>
+
+    <string name="cloud_error_title">Homika Cloud operation failed</string>
+    <string name="cloud_error_license">Your active Homika Pro licence could not be verified for cloud access. Verify the licence and try again.</string>
+    <string name="cloud_error_network">Homika could not reach Homika Cloud. Check your internet connection and try again.</string>
+    <string name="cloud_error_not_configured">Homika Cloud storage has not been configured on the server yet.</string>
+    <string name="cloud_error_not_found">No cloud backup is available for this licence yet.</string>
+    <string name="cloud_error_too_large">This backup is larger than the current Homika Cloud backup limit.</string>
+    <string name="cloud_error_invalid">The downloaded cloud backup could not be decrypted or is invalid.</string>
+    <string name="cloud_error_rejected">The Homika Cloud request was rejected by the server.</string>
+    <string name="cloud_error_server">Homika Cloud returned a server error. Try again shortly.</string>
+</resources>

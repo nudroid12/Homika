@@ -4,6 +4,7 @@ import android.content.Context
 import com.homiq.app.data.account.AccountPreferences
 import com.homiq.app.data.backup.BackupPreferences
 import com.homiq.app.data.backup.HomiqBackupService
+import com.homiq.app.data.cloud.HomikaCloudBackupService
 import com.homiq.app.data.local.HomiqDatabase
 import com.homiq.app.data.license.LicenseRepository
 import com.homiq.app.data.repository.BlockedDateRepository
@@ -101,6 +102,13 @@ class HomiqAppContainer(
         HomiqBackupService(
             context = context,
             database = database,
+        )
+    }
+
+    val cloudBackupService: HomikaCloudBackupService by lazy {
+        HomikaCloudBackupService(
+            backupService = backupService,
+            licenseRepository = licenseRepository,
         )
     }
 

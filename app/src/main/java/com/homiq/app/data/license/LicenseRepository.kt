@@ -16,6 +16,34 @@ class LicenseRepository(
     private val deviceId = LicenseDeviceIdentity.fingerprint(applicationContext)
     private val deviceName = LicenseDeviceIdentity.displayName()
 
+    data class CloudCredentials(
+        val activationToken: String,
+        val deviceId: String,
+    )
+
+    fun cloudCredentials(
+        nowMillis: Long = System.currentTimeMillis(),
+    ): CloudCredentials? {
+        val stored = preferences.read() ?: return null
+        val verified = ActivationTokenVerifier.verify(
+            token = stored.activationToken,
+            expectedDeviceId = deviceId,
+            nowMillis = nowMillis,
+        ) ?: return null
+
+        if (
+            verified.planType != LicensePlanType.LIFETIME &&
+            nowMillis >= verified.expiresAtEpochMillis
+        ) {
+            return null
+        }
+
+        return CloudCredentials(
+            activationToken = stored.activationToken,
+            deviceId = deviceId,
+        )
+    }
+
     fun localState(nowMillis: Long = System.currentTimeMillis()): LicenseUiState {
         val stored = preferences.read()
         if (stored == null) {
