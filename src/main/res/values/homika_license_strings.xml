@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="license_homika_pro">Homika Pro</string>
+    <string name="license_annual_label">Annual licence</string>
+    <string name="license_checking">Checking licence</string>
+    <string name="license_checking_body">Homika is verifying this device. This normally takes only a moment.</string>
+    <string name="license_activate_title">Activate Homika Pro</string>
+    <string name="license_activate_body">Enter the licence code issued with your Homika Pro purchase.</string>
+    <string name="license_code">Licence code</string>
+    <string name="license_activate_button">Activate licence</string>
+    <string name="license_retry">Try verification again</string>
+    <string name="license_device_allowance">Up to %1$d devices for this licence</string>
+    <string name="license_offline_note">After a successful verification, Homika can keep working offline for up to 7 days before it needs to verify again.</string>
+    <string name="license_error_network">Internet verification required</string>
+    <string name="license_error_network_body">Connect to the internet so Homika can verify this licence. Your local business data is not deleted.</string>
+    <string name="license_error_expired">Licence expired</string>
+    <string name="license_error_expired_body">Renew this licence to continue using Homika Pro.</string>
+    <string name="license_error_inactive">Licence inactive</string>
+    <string name="license_error_inactive_body">This licence is currently inactive. Contact the seller if you believe this is a mistake.</string>
+    <string name="license_error_device_limit">Device limit reached</string>
+    <string name="license_error_device_limit_body">This licence currently has %1$d of %2$d devices active. Deactivate an old device before activating this one.</string>
+    <string name="license_error_invalid">Licence not accepted</string>
+    <string name="license_error_invalid_body">Check the licence code and try again.</string>
+</resources>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="license_homika_pro">Homika Pro</string>
+    <string name="license_annual_label">Lesen tahunan</string>
+    <string name="license_checking">Menyemak lesen</string>
+    <string name="license_checking_body">Homika sedang mengesahkan peranti ini. Biasanya hanya mengambil masa seketika.</string>
+    <string name="license_activate_title">Aktifkan Homika Pro</string>
+    <string name="license_activate_body">Masukkan kod lesen yang diterima bersama pembelian Homika Pro.</string>
+    <string name="license_code">Kod lesen</string>
+    <string name="license_activate_button">Aktifkan lesen</string>
+    <string name="license_retry">Cuba semak semula</string>
+    <string name="license_device_allowance">Sehingga %1$d peranti untuk lesen ini</string>
+    <string name="license_offline_note">Selepas pengesahan berjaya, Homika boleh terus digunakan tanpa internet sehingga 7 hari sebelum perlu disahkan semula.</string>
+    <string name="license_error_network">Pengesahan internet diperlukan</string>
+    <string name="license_error_network_body">Sambungkan internet supaya Homika boleh mengesahkan lesen ini. Data perniagaan lokal anda tidak akan dipadam.</string>
+    <string name="license_error_expired">Lesen telah tamat</string>
+    <string name="license_error_expired_body">Perbaharui lesen ini untuk terus menggunakan Homika Pro.</string>
+    <string name="license_error_inactive">Lesen tidak aktif</string>
+    <string name="license_error_inactive_body">Lesen ini sedang tidak aktif. Hubungi penjual jika anda rasa ini satu kesilapan.</string>
+    <string name="license_error_device_limit">Had peranti telah penuh</string>
+    <string name="license_error_device_limit_body">Lesen ini sedang menggunakan %1$d daripada %2$d peranti. Nyahaktifkan peranti lama sebelum mengaktifkan peranti ini.</string>
+    <string name="license_error_invalid">Lesen tidak diterima</string>
+    <string name="license_error_invalid_body">Semak kod lesen dan cuba lagi.</string>
+</resources>
