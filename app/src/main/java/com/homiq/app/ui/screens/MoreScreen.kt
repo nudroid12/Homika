@@ -18,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.HomeWork
 import androidx.compose.material.icons.outlined.Language
@@ -64,8 +63,6 @@ import com.homiq.app.ui.viewmodel.HomiqViewModelFactory
 fun MoreScreen(
     onPropertiesClick: () -> Unit,
     onBackupClick: () -> Unit,
-    syncEnabled: Boolean,
-    onSyncClick: () -> Unit,
     appLockEnabled: Boolean,
     onSecurityClick: () -> Unit,
     onCheckUpdates: () -> Unit,
@@ -132,33 +129,14 @@ fun MoreScreen(
                 icon = Icons.Outlined.Person,
                 title = stringResource(R.string.account),
                 supporting =
-                    if (
-                        accountState.account
-                            .googleConnected
-                    ) {
-                        accountState.account.googleEmail
-                            ?: stringResource(
-                                R.string
-                                    .account_connected_supporting,
-                            )
-                    } else {
-                        accountState.account
-                            .localProfileName
-                            .takeIf { it.isNotBlank() }
-                            ?: stringResource(
-                                R.string
-                                    .account_local_supporting,
-                            )
-                    },
+                    accountState.account
+                        .localProfileName
+                        .takeIf { it.isNotBlank() }
+                        ?: stringResource(
+                            R.string.account_local_supporting,
+                        ),
                 trailing = stringResource(
-                    if (
-                        accountState.account
-                            .googleConnected
-                    ) {
-                        R.string.account_google_short
-                    } else {
-                        R.string.account_local_short
-                    },
+                    R.string.account_local_short,
                 ),
                 onClick = { showAccount = true },
             )
@@ -174,15 +152,6 @@ fun MoreScreen(
         }
 
         CompactSection(stringResource(R.string.settings_data)) {
-            CompactSettingRow(
-                icon = Icons.Outlined.CloudSync,
-                title = stringResource(R.string.sync_title),
-                trailing = stringResource(
-                    if (syncEnabled) R.string.sync_connected else R.string.sync_not_connected,
-                ),
-                onClick = onSyncClick,
-            )
-            CompactDivider()
             CompactSettingRow(
                 icon = Icons.Outlined.Backup,
                 title = stringResource(R.string.backup_restore),

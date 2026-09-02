@@ -7,10 +7,4 @@ class HomiqApplication : Application() {
     val container: HomiqAppContainer by lazy {
         HomiqAppContainer(applicationContext)
     }
-
-    override fun onCreate() {
-        super.onCreate()
-        container.syncService.startAutoSync()
-        container.autoBackupService.start()
-    }
 }

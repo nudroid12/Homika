@@ -1,706 +1,326 @@
 package com.homiq.app.ui.screens
 
+import android.text.format.DateFormat
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CloudDownload
-import androidx.compose.material.icons.outlined.CloudUpload
-import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.SaveAlt
+import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homiq.app.R
-import com.homiq.app.data.backup.BackupDestination
+import com.homiq.app.data.backup.BackupFailureReason
 import com.homiq.app.data.backup.BackupPreview
-import com.homiq.app.data.backup.DriveBackupFailureReason
-import com.homiq.app.ui.components.ScreenHeader
-import com.homiq.app.ui.util.formatBackupTime
-import com.homiq.app.ui.util.messageRes
 import com.homiq.app.ui.viewmodel.BackupUiMessage
 import com.homiq.app.ui.viewmodel.BackupViewModel
+import java.util.Date
 
 @Composable
 fun BackupScreen(
     viewModel: BackupViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val state by
-        viewModel.state
-            .collectAsStateWithLifecycle()
-    val locale =
-        LocalConfiguration
-            .current
-            .locales[0]
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
-    val createLauncher =
+    val createBackup =
         rememberLauncherForActivityResult(
-            contract =
-                ActivityResultContracts
-                    .CreateDocument(
-                        "application/json",
-                    ),
-        ) { uri ->
-            if (uri != null) {
-                viewModel.createBackup(uri)
-            }
-        }
-
-    val openLauncher =
-        rememberLauncherForActivityResult(
-            contract =
-                ActivityResultContracts
-                    .OpenDocument(),
-        ) { uri ->
-            if (uri != null) {
-                viewModel.inspectRestore(uri)
-            }
-        }
-
-    val authorizationLauncher =
-        rememberLauncherForActivityResult(
-            contract =
-                ActivityResultContracts
-                    .StartIntentSenderForResult(),
-        ) { result ->
-            viewModel
-                .completeDriveAuthorization(
-                    result.data,
-                )
-        }
-
-    state.pendingDriveResolution
-        ?.let { pending ->
-            LaunchedEffect(pending) {
-                viewModel
-                    .driveResolutionLaunched()
-                authorizationLauncher.launch(
-                    IntentSenderRequest.Builder(
-                        pending.intentSender,
-                    ).build(),
-                )
-            }
-        }
-
-    val lastBackup =
-        formatBackupTime(
-            state.history
-                .lastBackupEpochMillis,
-            locale,
-        )
-            ?: stringResource(
-                R.string.never,
-            )
-
-    val lastRestore =
-        formatBackupTime(
-            state.history
-                .lastRestoreEpochMillis,
-            locale,
-        )
-            ?: stringResource(
-                R.string.never,
-            )
-
-    LazyColumn(
-        modifier =
-            modifier.fillMaxSize(),
-        contentPadding =
-            PaddingValues(
-                start = 16.dp,
-                top = 18.dp,
-                end = 16.dp,
-                bottom = 28.dp,
+            ActivityResultContracts.CreateDocument(
+                "application/octet-stream",
             ),
-        verticalArrangement =
-            Arrangement.spacedBy(14.dp),
+        ) { uri ->
+            viewModel.createBackup(uri)
+        }
+
+    val inspectRestore =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenDocument(),
+        ) { uri ->
+            viewModel.inspectRestore(uri)
+        }
+
+    Column(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item {
-            ScreenHeader(
-                title =
-                    stringResource(
-                        R.string
-                            .backup_restore_title,
-                    ),
-                subtitle =
-                    stringResource(
-                        R.string
-                            .backup_final_subtitle,
-                    ),
-            )
-        }
+        Text(
+            text = stringResource(R.string.backup_restore_title),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
 
-        item {
-            Surface(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                shape =
-                    MaterialTheme
-                        .shapes
-                        .extraLarge,
-                tonalElevation = 1.dp,
+        Text(
+            text = stringResource(R.string.backup_restore_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 1.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column {
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                stringResource(
-                                    R.string
-                                        .backup_last_backup,
-                                ),
-                            )
-                        },
-                        supportingContent = {
-                            Text(
-                                backupHistoryText(
-                                    time =
-                                        lastBackup,
-                                    destination =
-                                        state
-                                            .lastBackupDestination,
-                                ),
-                            )
-                        },
-                    )
-
-                    HorizontalDivider()
-
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                stringResource(
-                                    R.string
-                                        .backup_last_restore,
-                                ),
-                            )
-                        },
-                        supportingContent = {
-                            Text(
-                                backupHistoryText(
-                                    time =
-                                        lastRestore,
-                                    destination =
-                                        state
-                                            .lastRestoreSource,
-                                ),
-                            )
-                        },
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.backup_zero_cost_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.backup_zero_cost_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
-        item {
-            Surface(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                shape =
-                    MaterialTheme
-                        .shapes
-                        .extraLarge,
-                tonalElevation = 1.dp,
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 1.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            stringResource(
-                                R.string
-                                    .backup_auto_title,
-                            ),
-                            style =
-                                MaterialTheme
-                                    .typography
-                                    .titleMedium,
-                        )
-                    },
-                    supportingContent = {
-                        Column(
-                            verticalArrangement =
-                                Arrangement
-                                    .spacedBy(
-                                        3.dp,
-                                    ),
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (
-                                        state
-                                            .driveConnected
-                                    ) {
-                                        R.string
-                                            .backup_auto_body
-                                    } else {
-                                        R.string
-                                            .backup_auto_requires_drive
-                                    },
-                                ),
-                            )
-
-                            if (
-                                state.autoBackupPending
-                            ) {
-                                Text(
-                                    text =
-                                        stringResource(
-                                            if (
-                                                state.autoBackupRunning
-                                            ) {
-                                                R.string
-                                                    .backup_auto_running
-                                            } else {
-                                                R.string
-                                                    .backup_auto_pending
-                                            },
-                                        ),
-                                    color =
-                                        MaterialTheme
-                                            .colorScheme
-                                            .primary,
-                                    style =
-                                        MaterialTheme
-                                            .typography
-                                            .labelMedium,
-                                )
+                HistoryRow(
+                    label = stringResource(R.string.backup_last_backup),
+                    value =
+                        state.history.lastBackupEpochMillis
+                            ?.let {
+                                DateFormat.getMediumDateFormat(context)
+                                    .format(Date(it))
                             }
-                        }
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked =
-                                state
-                                    .autoBackupEnabled,
-                            onCheckedChange =
-                                viewModel::
-                                    setAutoBackupEnabled,
-                            enabled =
-                                state
-                                    .driveConnected &&
-                                    !state.isBusy,
-                        )
-                    },
+                            ?: stringResource(R.string.never),
+                )
+                HistoryRow(
+                    label = stringResource(R.string.backup_last_restore),
+                    value =
+                        state.history.lastRestoreEpochMillis
+                            ?.let {
+                                DateFormat.getMediumDateFormat(context)
+                                    .format(Date(it))
+                            }
+                            ?: stringResource(R.string.never),
                 )
             }
         }
 
-        item {
+        Button(
+            onClick = {
+                createBackup.launch(
+                    viewModel.backupFileName(),
+                )
+            },
+            enabled = !state.isBusy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                Icons.Outlined.Backup,
+                contentDescription = null,
+            )
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .backup_now_title,
-                    ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleMedium,
+                text = stringResource(R.string.create_backup),
+                modifier = Modifier.padding(start = 8.dp),
             )
         }
 
-        item {
-            Button(
-                onClick =
-                    viewModel::
-                        createDriveBackup,
-                enabled =
-                    !state.isBusy &&
-                        state.driveConnected,
-                modifier =
-                    Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector =
-                        Icons.Outlined
-                            .CloudUpload,
-                    contentDescription = null,
+        OutlinedButton(
+            onClick = {
+                inspectRestore.launch(
+                    arrayOf(
+                        "application/octet-stream",
+                        "application/json",
+                        "text/plain",
+                        "*/*",
+                    ),
                 )
-                Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .backup_to_google_drive,
-                        ),
-                    modifier =
-                        Modifier.padding(
-                            start = 8.dp,
-                        ),
-                )
-            }
-        }
-
-        item {
-            OutlinedButton(
-                onClick = {
-                    createLauncher.launch(
-                        viewModel
-                            .backupFileName(),
-                    )
-                },
-                enabled = !state.isBusy,
-                modifier =
-                    Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector =
-                        Icons.Outlined
-                            .SaveAlt,
-                    contentDescription = null,
-                )
-                Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .backup_save_to_device,
-                        ),
-                    modifier =
-                        Modifier.padding(
-                            start = 8.dp,
-                        ),
-                )
-            }
-        }
-
-        if (!state.driveConnected) {
-            item {
-                Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .backup_drive_connect_hint,
-                        ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodySmall,
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .onSurfaceVariant,
-                )
-            }
-        }
-
-        item {
+            },
+            enabled = !state.isBusy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                Icons.Outlined.Restore,
+                contentDescription = null,
+            )
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .restore_title_short,
-                    ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleMedium,
-                modifier =
-                    Modifier.padding(
-                        top = 4.dp,
-                    ),
+                text = stringResource(R.string.restore_backup),
+                modifier = Modifier.padding(start = 8.dp),
             )
         }
 
-        item {
-            OutlinedButton(
-                onClick =
-                    viewModel::
-                        inspectDriveRestore,
-                enabled =
-                    !state.isBusy &&
-                        state.driveConnected,
-                modifier =
-                    Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector =
-                        Icons.Outlined
-                            .CloudDownload,
-                    contentDescription = null,
-                )
-                Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .restore_from_google_drive,
-                        ),
-                    modifier =
-                        Modifier.padding(
-                            start = 8.dp,
-                        ),
-                )
-            }
-        }
-
-        item {
-            OutlinedButton(
-                onClick = {
-                    openLauncher.launch(
-                        arrayOf(
-                            "application/json",
-                            "application/octet-stream",
-                            "text/plain",
-                        ),
-                    )
-                },
-                enabled = !state.isBusy,
-                modifier =
-                    Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector =
-                        Icons.Outlined
-                            .FolderOpen,
-                    contentDescription = null,
-                )
-                Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .restore_from_file,
-                        ),
-                    modifier =
-                        Modifier.padding(
-                            start = 8.dp,
-                        ),
-                )
-            }
-        }
+        Text(
+            text = stringResource(R.string.backup_picker_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         if (state.isBusy) {
-            item {
-                androidx.compose
-                    .foundation
-                    .layout
-                    .Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth(),
-                        contentAlignment =
-                            Alignment.Center,
-                    ) {
-                    CircularProgressIndicator()
-                }
-            }
+            CircularProgressIndicator()
         }
     }
 
-    state.pendingRestorePreview
-        ?.let {
-            RestoreConfirmationDialog(
-                preview = it,
-                locale = locale,
-                onConfirm =
-                    viewModel::
-                        confirmRestore,
-                onDismiss =
-                    viewModel::
-                        cancelRestore,
-            )
-        }
+    state.pendingRestorePreview?.let { preview ->
+        RestoreConfirmation(
+            preview = preview,
+            onConfirm = viewModel::confirmRestore,
+            onDismiss = viewModel::cancelRestore,
+        )
+    }
 
     state.message?.let { message ->
-        BackupResultDialog(
+        BackupMessageDialog(
             message = message,
-            locale = locale,
-            onDismiss =
-                viewModel::clearMessage,
+            onDismiss = viewModel::clearMessage,
         )
     }
 }
 
 @Composable
-private fun backupHistoryText(
-    time: String,
-    destination: BackupDestination?,
-): String {
-    if (destination == null) {
-        return time
-    }
-
-    val source =
-        stringResource(
-            when (destination) {
-                BackupDestination
-                    .GOOGLE_DRIVE ->
-                    R.string
-                        .backup_destination_drive
-                BackupDestination
-                    .DEVICE_FILE ->
-                    R.string
-                        .backup_destination_file
-            },
+private fun HistoryRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
         )
-
-    return stringResource(
-        R.string.backup_history_value,
-        time,
-        source,
-    )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
+    }
 }
 
 @Composable
-private fun RestoreConfirmationDialog(
+private fun RestoreConfirmation(
     preview: BackupPreview,
-    locale: java.util.Locale,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val created =
+        DateFormat.getMediumDateFormat(context)
+            .format(Date(preview.createdAtEpochMillis))
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                stringResource(
-                    R.string
-                        .restore_confirm_title,
-                ),
-            )
+            Text(stringResource(R.string.restore_confirm_title))
         },
         text = {
             Text(
                 stringResource(
-                    R.string
-                        .homika_restore_confirm_body_v2,
-                    formatBackupTime(
-                        preview
-                            .createdAtEpochMillis,
-                        locale,
-                    ).orEmpty(),
+                    R.string.restore_confirm_body,
+                    created,
                     preview.propertyCount,
                     preview.bookingCount,
+                    preview.paymentCount,
                     preview.expenseCount,
-                    preview.depositCount,
-                    preview.blockedDateCount,
-                    preview.propertyCount +
-                        preview.bookingCount +
-                        preview.expenseCount +
-                        preview.depositCount +
-                        preview.blockedDateCount,
+                    preview.totalRecordCount,
                 ),
             )
         },
         confirmButton = {
-            Button(onClick = onConfirm) {
-                Text(
-                    stringResource(
-                        R.string.restore_now,
-                    ),
-                )
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.restore_now))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(
-                    stringResource(
-                        R.string.cancel,
-                    ),
-                )
+                Text(stringResource(R.string.cancel))
             }
         },
     )
 }
 
 @Composable
-private fun BackupResultDialog(
+private fun BackupMessageDialog(
     message: BackupUiMessage,
-    locale: java.util.Locale,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
+
     val title: String
     val body: String
 
     when (message) {
         is BackupUiMessage.BackupCreated -> {
-            title =
-                stringResource(
-                    R.string
-                        .backup_success_title,
-                )
+            title = stringResource(R.string.backup_success_title)
             body =
                 stringResource(
-                    if (
-                        message.destination ==
-                            BackupDestination
-                                .GOOGLE_DRIVE
-                    ) {
-                        R.string
-                            .backup_drive_success_body
-                    } else {
-                        R.string
-                            .backup_file_success_body
-                    },
-                    message.preview
-                        .totalRecordCount,
+                    R.string.backup_success_body,
+                    message.preview.totalRecordCount,
                 )
         }
 
         is BackupUiMessage.RestoreCompleted -> {
-            title =
-                stringResource(
-                    R.string
-                        .restore_success_title,
-                )
+            title = stringResource(R.string.restore_success_title)
+            val created =
+                DateFormat.getMediumDateFormat(context)
+                    .format(
+                        Date(
+                            message.preview.createdAtEpochMillis,
+                        ),
+                    )
             body =
                 stringResource(
-                    R.string
-                        .restore_success_body,
-                    message.preview
-                        .totalRecordCount,
-                    formatBackupTime(
-                        message.preview
-                            .createdAtEpochMillis,
-                        locale,
-                    ).orEmpty(),
+                    R.string.restore_success_body,
+                    message.preview.totalRecordCount,
+                    created,
                 )
         }
 
         is BackupUiMessage.Failure -> {
-            title =
-                stringResource(
-                    R.string
-                        .backup_error_title,
-                )
+            title = stringResource(R.string.backup_error_title)
             body =
                 stringResource(
-                    message.reason
-                        .messageRes(),
-                )
-        }
-
-        is BackupUiMessage.DriveFailure -> {
-            title =
-                stringResource(
-                    R.string
-                        .backup_drive_error_title,
-                )
-            body =
-                stringResource(
-                    driveFailureMessage(
-                        message.reason,
-                    ),
+                    when (message.reason) {
+                        BackupFailureReason.FILE_UNAVAILABLE ->
+                            R.string.backup_error_file
+                        BackupFailureReason.INVALID_BACKUP ->
+                            R.string.backup_error_invalid
+                        BackupFailureReason.UNSUPPORTED_FORMAT ->
+                            R.string.backup_error_format
+                        BackupFailureReason.UNSUPPORTED_DATABASE_VERSION ->
+                            R.string.backup_error_database_version
+                        BackupFailureReason.WRITE_FAILED ->
+                            R.string.backup_error_write
+                        BackupFailureReason.RESTORE_FAILED ->
+                            R.string.backup_error_restore
+                    },
                 )
         }
     }
@@ -711,58 +331,8 @@ private fun BackupResultDialog(
         text = { Text(body) },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(
-                    stringResource(
-                        R.string.ok,
-                    ),
-                )
+                Text(stringResource(R.string.ok))
             }
         },
     )
 }
-
-private fun driveFailureMessage(
-    reason: DriveBackupFailureReason,
-): Int =
-    when (reason) {
-        DriveBackupFailureReason
-            .NOT_CONNECTED ->
-            R.string
-                .backup_drive_error_not_connected
-        DriveBackupFailureReason
-            .AUTHORIZATION_FAILED ->
-            R.string
-                .backup_drive_error_auth
-        DriveBackupFailureReason
-            .AUTHORIZATION_CANCELLED ->
-            R.string
-                .backup_drive_error_cancelled
-        DriveBackupFailureReason
-            .NETWORK_UNAVAILABLE ->
-            R.string
-                .backup_drive_error_network
-        DriveBackupFailureReason
-            .DRIVE_ACCESS_FAILED ->
-            R.string
-                .backup_drive_error_access
-        DriveBackupFailureReason
-            .BACKUP_NOT_FOUND ->
-            R.string
-                .backup_drive_error_not_found
-        DriveBackupFailureReason
-            .INVALID_BACKUP ->
-            R.string
-                .backup_error_invalid
-        DriveBackupFailureReason
-            .UNSUPPORTED_FORMAT ->
-            R.string
-                .backup_error_format
-        DriveBackupFailureReason
-            .UNSUPPORTED_DATABASE_VERSION ->
-            R.string
-                .backup_error_database_version
-        DriveBackupFailureReason
-            .RESTORE_FAILED ->
-            R.string
-                .backup_error_restore
-    }

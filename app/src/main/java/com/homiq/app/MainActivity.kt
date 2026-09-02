@@ -31,11 +31,6 @@ class MainActivity : AppCompatActivity() {
         homiqApplication.container
             .updateManager
             .onAppForeground()
-        if (!homiqApplication.container.appLockService.state.value.locked) {
-            homiqApplication.container
-                .syncService
-                .onAppForeground()
-        }
     }
 
     override fun onStop() {

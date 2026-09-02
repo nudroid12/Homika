@@ -74,7 +74,6 @@ import com.homiq.app.ui.screens.PropertiesScreen
 import com.homiq.app.ui.screens.PropertyFormScreen
 import com.homiq.app.ui.screens.ReportsScreen
 import com.homiq.app.ui.screens.SecurityScreen
-import com.homiq.app.ui.screens.SyncScreen
 import com.homiq.app.ui.viewmodel.AppLockViewModel
 import com.homiq.app.ui.viewmodel.BackupViewModel
 import com.homiq.app.ui.viewmodel.BlockedDateViewModel
@@ -86,7 +85,6 @@ import com.homiq.app.ui.viewmodel.HomiqViewModelFactory
 import com.homiq.app.ui.viewmodel.MoneyViewModel
 import com.homiq.app.ui.viewmodel.PropertyViewModel
 import com.homiq.app.ui.viewmodel.ReportsViewModel
-import com.homiq.app.ui.viewmodel.SyncViewModel
 import kotlinx.coroutines.launch
 
 private enum class HomiqDestination(
@@ -111,7 +109,6 @@ private enum class HomiqRoute {
     EXPENSE_FORM,
     REPORTS,
     BACKUP,
-    SYNC,
     SECURITY,
 }
 
@@ -137,8 +134,6 @@ fun HomiqApp() {
     val dashboardViewModel: DashboardViewModel = viewModel(factory = factory)
     val reportsViewModel: ReportsViewModel = viewModel(factory = factory)
     val backupViewModel: BackupViewModel = viewModel(factory = factory)
-    val syncViewModel: SyncViewModel = viewModel(factory = factory)
-    val syncUiState by syncViewModel.state.collectAsStateWithLifecycle()
     val updateManager = remember(application) { application.container.updateManager }
     val updateState by updateManager.state.collectAsStateWithLifecycle()
 
@@ -154,7 +149,6 @@ fun HomiqApp() {
 
     if (!onboardingComplete) {
         OnboardingScreen(
-            syncViewModel = syncViewModel,
             appLockViewModel = appLockViewModel,
             onFinished = {
                 onboardingPreferences.complete()
@@ -215,7 +209,6 @@ fun HomiqApp() {
                 HomiqRoute.EXPENSE_FORM -> goMain(HomiqDestination.Money)
                 HomiqRoute.REPORTS -> goMain(HomiqDestination.Home)
                 HomiqRoute.BACKUP,
-                HomiqRoute.SYNC,
                 HomiqRoute.SECURITY,
                 HomiqRoute.PROPERTIES -> goMain(HomiqDestination.More)
                 HomiqRoute.MAIN -> Unit
@@ -288,8 +281,6 @@ fun HomiqApp() {
                 HomiqDestination.More -> MoreScreen(
                     onPropertiesClick = { navigate(HomiqRoute.PROPERTIES) },
                     onBackupClick = { navigate(HomiqRoute.BACKUP) },
-                    syncEnabled = syncUiState.runtime.enabled,
-                    onSyncClick = { navigate(HomiqRoute.SYNC) },
                     appLockEnabled = appLockState.hasPin,
                     onSecurityClick = { navigate(HomiqRoute.SECURITY) },
                     onCheckUpdates = { updateManager.checkForUpdates(manual = true) },
@@ -362,7 +353,6 @@ fun HomiqApp() {
                 )
                 HomiqRoute.REPORTS -> ReportsScreen(viewModel = reportsViewModel, modifier = Modifier.padding(innerPadding))
                 HomiqRoute.BACKUP -> BackupScreen(viewModel = backupViewModel, modifier = Modifier.padding(innerPadding))
-                HomiqRoute.SYNC -> SyncScreen(viewModel = syncViewModel, modifier = Modifier.padding(innerPadding))
                 HomiqRoute.SECURITY -> SecurityScreen(viewModel = appLockViewModel, modifier = Modifier.padding(innerPadding))
                 HomiqRoute.MAIN -> Unit
             }

@@ -23,12 +23,6 @@ class HomiqViewModelFactory(
                 AccountViewModel(
                     accountPreferences =
                         container.accountPreferences,
-                    accountService =
-                        container.accountService,
-                    syncService =
-                        container.syncService,
-                    autoBackupService =
-                        container.autoBackupService,
                 ) as T
 
             modelClass.isAssignableFrom(
@@ -181,28 +175,8 @@ class HomiqViewModelFactory(
                 BackupViewModel(
                     service =
                         container.backupService,
-                    driveService =
-                        container
-                            .driveBackupService,
                     backupPreferences =
-                        container
-                            .backupPreferences,
-                    autoBackupService =
-                        container
-                            .autoBackupService,
-                    accountPreferences =
-                        container.accountPreferences,
-                ) as T
-
-            modelClass.isAssignableFrom(
-                SyncViewModel::class.java,
-            ) ->
-                SyncViewModel(
-                    service =
-                        container.syncService,
-                    preferences =
-                        container
-                            .syncPreferences,
+                        container.backupPreferences,
                 ) as T
 
             else -> error(
