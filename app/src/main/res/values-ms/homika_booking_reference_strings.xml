@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="homika_booking_code">Kod tempahan</string>
+    <string name="homika_booking_code_hint">Digunakan untuk rujukan tempahan, contohnya MH-020926. Kod ini boleh diubah.</string>
+    <string name="homika_booking_reference">Rujukan tempahan</string>
+</resources>

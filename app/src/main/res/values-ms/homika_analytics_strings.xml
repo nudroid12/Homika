@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="homika_analytics_title">Analitik</string>
+    <string name="homika_analytics_subtitle">Pantau hasil, untung, penghunian dan prestasi setiap homestay.</string>
+    <string name="homika_analytics_property">Homestay</string>
+    <string name="homika_analytics_all_properties">Semua homestay</string>
+    <string name="homika_analytics_this_month">Bulan ini</string>
+    <string name="homika_analytics_3m">3B</string>
+    <string name="homika_analytics_6m">6B</string>
+    <string name="homika_analytics_ytd">Tahun ini</string>
+    <string name="homika_analytics_custom">Pilih tarikh</string>
+    <string name="homika_analytics_from">Dari</string>
+    <string name="homika_analytics_to">Hingga</string>
+    <string name="homika_analytics_revenue">Hasil</string>
+    <string name="homika_analytics_net_profit">Untung bersih</string>
+    <string name="homika_analytics_occupancy">Penghunian</string>
+    <string name="homika_analytics_bookings">Tempahan</string>
+    <string name="homika_analytics_vs_previous">%1$s berbanding tempoh sebelumnya</string>
+    <string name="homika_analytics_no_previous">Tiada asas perbandingan sebelumnya</string>
+    <string name="homika_analytics_pp_change">%1$s mata peratus berbanding tempoh sebelumnya</string>
+    <string name="homika_analytics_booking_delta">%1$s berbanding tempoh sebelumnya</string>
+    <string name="homika_analytics_revenue_profit_trend">Trend hasil &amp; untung bersih</string>
+    <string name="homika_analytics_revenue_profit_body">Jumlah diterima dan untung bagi setiap tempoh.</string>
+    <string name="homika_analytics_occupancy_trend">Trend penghunian</string>
+    <string name="homika_analytics_occupancy_body">Malam ditempah sebagai peratus daripada malam yang tersedia.</string>
+    <string name="homika_analytics_booked_available">%1$d malam ditempah / %2$d malam tersedia</string>
+    <string name="homika_analytics_property_performance">Prestasi homestay</string>
+    <string name="homika_analytics_property_performance_body">Disusun mengikut hasil diterima bagi tempoh dipilih.</string>
+    <string name="homika_analytics_property_row">Hasil %1$s · Untung %2$s · Penghunian %3$s</string>
+    <string name="homika_analytics_business_insights">Ringkasan prestasi</string>
+    <string name="homika_analytics_average_booking">Purata jumlah diterima</string>
+    <string name="homika_analytics_average_stay">Purata penginapan</string>
+    <string name="homika_analytics_nights_value">%1$.1f malam</string>
+    <string name="homika_analytics_revenue_per_available_night">Hasil / malam tersedia</string>
+    <string name="homika_analytics_expenses">Perbelanjaan</string>
+    <string name="homika_analytics_no_properties_title">Belum ada data homestay</string>
+    <string name="homika_analytics_no_properties_body">Tambah homestay dan tempahan untuk mula melihat analitik.</string>
+    <string name="homika_analytics_share">Kongsi analitik</string>
+    <string name="homika_analytics_share_subject">Analitik Homika · %1$s</string>
+    <string name="homika_analytics_unassigned_expenses_note">Untung keseluruhan termasuk perbelanjaan tanpa homestay. Untung setiap homestay hanya menggunakan perbelanjaan yang ditetapkan kepada homestay itu.</string>
+</resources>

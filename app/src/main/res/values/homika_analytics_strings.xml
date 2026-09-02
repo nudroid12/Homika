@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="homika_analytics_title">Analytics</string>
+    <string name="homika_analytics_subtitle">Track revenue, profit, occupancy and property performance.</string>
+    <string name="homika_analytics_property">Property</string>
+    <string name="homika_analytics_all_properties">All properties</string>
+    <string name="homika_analytics_this_month">This month</string>
+    <string name="homika_analytics_3m">3M</string>
+    <string name="homika_analytics_6m">6M</string>
+    <string name="homika_analytics_ytd">YTD</string>
+    <string name="homika_analytics_custom">Custom</string>
+    <string name="homika_analytics_from">From</string>
+    <string name="homika_analytics_to">To</string>
+    <string name="homika_analytics_revenue">Revenue</string>
+    <string name="homika_analytics_net_profit">Net profit</string>
+    <string name="homika_analytics_occupancy">Occupancy</string>
+    <string name="homika_analytics_bookings">Bookings</string>
+    <string name="homika_analytics_vs_previous">%1$s vs previous period</string>
+    <string name="homika_analytics_no_previous">No previous-period baseline</string>
+    <string name="homika_analytics_pp_change">%1$s pp vs previous period</string>
+    <string name="homika_analytics_booking_delta">%1$s vs previous period</string>
+    <string name="homika_analytics_revenue_profit_trend">Revenue &amp; net profit</string>
+    <string name="homika_analytics_revenue_profit_body">Amount received and profit for each period.</string>
+    <string name="homika_analytics_occupancy_trend">Occupancy trend</string>
+    <string name="homika_analytics_occupancy_body">Booked nights as a percentage of available nights.</string>
+    <string name="homika_analytics_booked_available">%1$d booked nights / %2$d available nights</string>
+    <string name="homika_analytics_property_performance">Property performance</string>
+    <string name="homika_analytics_property_performance_body">Ranked by received revenue for the selected period.</string>
+    <string name="homika_analytics_property_row">Revenue %1$s · Profit %2$s · Occupancy %3$s</string>
+    <string name="homika_analytics_business_insights">Business insights</string>
+    <string name="homika_analytics_average_booking">Average amount received</string>
+    <string name="homika_analytics_average_stay">Average stay</string>
+    <string name="homika_analytics_nights_value">%1$.1f nights</string>
+    <string name="homika_analytics_revenue_per_available_night">Revenue / available night</string>
+    <string name="homika_analytics_expenses">Expenses</string>
+    <string name="homika_analytics_no_properties_title">No property data yet</string>
+    <string name="homika_analytics_no_properties_body">Add a property and bookings to start seeing analytics.</string>
+    <string name="homika_analytics_share">Share analytics</string>
+    <string name="homika_analytics_share_subject">Homika analytics · %1$s</string>
+    <string name="homika_analytics_unassigned_expenses_note">Overall profit includes unassigned expenses. Property profit only includes expenses assigned to that property.</string>
+</resources>

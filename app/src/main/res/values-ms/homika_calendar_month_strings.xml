@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calendar_month_list_title">Ringkasan %1$s</string>
+    <string name="calendar_month_list_empty_title">Tiada aktiviti bulan ini</string>
+    <string name="calendar_month_list_empty_body">Tiada tempahan atau tarikh disekat direkodkan untuk bulan ini.</string>
+</resources>

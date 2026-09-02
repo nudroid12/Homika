@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="list_booking_action_view">Lihat tempahan</string>
+    <string name="list_booking_action_delete">Padam tempahan</string>
+    <string name="list_booking_delete_title">Padam tempahan?</string>
+    <string name="list_booking_delete_message">Padam tempahan untuk %1$s? Tempahan ini akan dibuang daripada senarai tempahan dan kalendar. Tindakan ini tidak boleh dibuat asal.</string>
+
+    <string name="list_property_action_edit">Edit homestay</string>
+    <string name="list_property_action_delete">Padam homestay</string>
+    <string name="list_property_delete_title">Padam homestay?</string>
+    <string name="list_property_delete_message">Padam %1$s? Tindakan ini tidak boleh dibuat asal.</string>
+    <string name="list_property_delete_blocked_title">Homestay tidak boleh dipadam</string>
+    <string name="list_property_delete_blocked_message">%1$s masih mempunyai sejarah tempahan, perbelanjaan atau tarikh disekat. Padam rekod berkaitan dahulu, atau biarkan homestay tidak aktif supaya rekod lama kekal selamat.</string>
+
+    <string name="list_expense_action_delete">Padam perbelanjaan</string>
+    <string name="list_expense_delete_title">Padam perbelanjaan?</string>
+    <string name="list_expense_delete_message">Padam perbelanjaan %1$s ini? Jumlah Money akan dikemas kini serta-merta. Tindakan ini tidak boleh dibuat asal.</string>
+
+    <string name="list_payment_action_delete">Padam bayaran</string>
+    <string name="list_payment_delete_title">Padam bayaran?</string>
+    <string name="list_payment_delete_message">Padam bayaran %1$s ini? Baki tempahan dan jumlah hasil akan dikemas kini serta-merta. Tindakan ini tidak boleh dibuat asal.</string>
+</resources>

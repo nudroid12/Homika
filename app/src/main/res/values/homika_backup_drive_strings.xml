@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_final_subtitle">Back up Homika to Google Drive or keep a portable file copy.</string>
+    <string name="backup_auto_title">Automatic backup</string>
+    <string name="backup_auto_body">Back up to Google Drive after every business-data change. Nearby changes are combined into one upload.</string>
+    <string name="backup_auto_requires_drive">Sign in to Google in Account first to enable automatic Drive backup.</string>
+    <string name="backup_auto_pending">Backup pending · Homika will retry automatically</string>
+    <string name="backup_auto_running">Backing up to Google Drive…</string>
+    <string name="backup_now_title">Back up now</string>
+    <string name="backup_to_google_drive">Back up to Google Drive</string>
+    <string name="backup_save_to_device">Save backup file</string>
+    <string name="backup_drive_connect_hint">Google Drive backup uses the Google account in More → Account. Drive Sync does not need to be enabled.</string>
+    <string name="restore_title_short">Restore</string>
+    <string name="restore_from_google_drive">Restore from Google Drive</string>
+    <string name="restore_from_file">Restore from file</string>
+    <string name="backup_destination_drive">Google Drive</string>
+    <string name="backup_destination_file">Device file</string>
+    <string name="backup_history_value">%1$s · %2$s</string>
+    <string name="backup_drive_success_body">%1$d Homika records were backed up directly to Google Drive.</string>
+    <string name="backup_file_success_body">%1$d Homika records were saved to the selected backup file.</string>
+    <string name="backup_drive_error_title">Google Drive backup unavailable</string>
+    <string name="backup_drive_error_not_connected">Connect Google Drive Sync first, then try again.</string>
+    <string name="backup_drive_error_auth">Google Drive needs authorization again. Try the action once more and approve access when asked.</string>
+    <string name="backup_drive_error_cancelled">Google Drive authorization was cancelled.</string>
+    <string name="backup_drive_error_network">Google Drive could not be reached. Your Homika data remains local and automatic backup will retry.</string>
+    <string name="backup_drive_error_access">Homika could not access its private backup area in Google Drive.</string>
+    <string name="backup_drive_error_not_found">No Homika Google Drive backup exists yet. Create a Drive backup first.</string>
+</resources>

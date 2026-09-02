@@ -1,0 +1,9 @@
+# Phase 10 stable DEBUG OAuth certificate.
+# This key is development-only and intentionally tracked.
+!homiq-debug.keystore
+
+# Homika private release keys are secrets and must never be committed.
+*.jks
+*.p12
+*.pfx
+!homiq-debug.keystore

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_final_subtitle">Sandarkan Homika ke Google Drive atau simpan salinan fail mudah alih.</string>
+    <string name="backup_auto_title">Sandaran automatik</string>
+    <string name="backup_auto_body">Sandarkan ke Google Drive selepas setiap perubahan data perniagaan. Perubahan berdekatan digabungkan dalam satu muat naik.</string>
+    <string name="backup_auto_requires_drive">Sign in Google melalui Akaun dahulu untuk mengaktifkan backup Drive automatik.</string>
+    <string name="backup_auto_pending">Sandaran menunggu · Homika akan cuba semula secara automatik</string>
+    <string name="backup_auto_running">Sedang membuat sandaran ke Google Drive…</string>
+    <string name="backup_now_title">Sandar sekarang</string>
+    <string name="backup_to_google_drive">Sandar ke Google Drive</string>
+    <string name="backup_save_to_device">Simpan fail sandaran</string>
+    <string name="backup_drive_connect_hint">Backup Google Drive menggunakan akaun Google di Lagi → Akaun. Drive Sync tidak perlu diaktifkan.</string>
+    <string name="restore_title_short">Pulihkan</string>
+    <string name="restore_from_google_drive">Pulihkan dari Google Drive</string>
+    <string name="restore_from_file">Pulihkan dari fail</string>
+    <string name="backup_destination_drive">Google Drive</string>
+    <string name="backup_destination_file">Fail peranti</string>
+    <string name="backup_history_value">%1$s · %2$s</string>
+    <string name="backup_drive_success_body">%1$d rekod Homika telah disandarkan terus ke Google Drive.</string>
+    <string name="backup_file_success_body">%1$d rekod Homika telah disimpan ke fail sandaran yang dipilih.</string>
+    <string name="backup_drive_error_title">Sandaran Google Drive tidak tersedia</string>
+    <string name="backup_drive_error_not_connected">Sambungkan Google Drive Sync dahulu, kemudian cuba lagi.</string>
+    <string name="backup_drive_error_auth">Google Drive memerlukan kebenaran semula. Cuba tindakan ini sekali lagi dan benarkan akses apabila diminta.</string>
+    <string name="backup_drive_error_cancelled">Kebenaran Google Drive telah dibatalkan.</string>
+    <string name="backup_drive_error_network">Google Drive tidak dapat dicapai. Data Homika kekal pada peranti dan sandaran automatik akan cuba semula.</string>
+    <string name="backup_drive_error_access">Homika tidak dapat mengakses ruang sandaran peribadinya di Google Drive.</string>
+    <string name="backup_drive_error_not_found">Belum ada sandaran Homika di Google Drive. Buat sandaran Drive dahulu.</string>
+</resources>

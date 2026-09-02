@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calendar_month_list_title">%1$s overview</string>
+    <string name="calendar_month_list_empty_title">No activity this month</string>
+    <string name="calendar_month_list_empty_body">No bookings or blocked dates are recorded for this month.</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="homika_booking_code">Booking code</string>
+    <string name="homika_booking_code_hint">Used for booking references, for example MH-020926. You can change this code.</string>
+    <string name="homika_booking_reference">Booking reference</string>
+</resources>

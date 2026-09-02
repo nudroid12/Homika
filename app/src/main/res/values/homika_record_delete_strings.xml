@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="list_booking_action_view">View booking</string>
+    <string name="list_booking_action_delete">Delete booking</string>
+    <string name="list_booking_delete_title">Delete booking?</string>
+    <string name="list_booking_delete_message">Delete the booking for %1$s? This removes it from bookings and calendar. This action cannot be undone.</string>
+
+    <string name="list_property_action_edit">Edit property</string>
+    <string name="list_property_action_delete">Delete property</string>
+    <string name="list_property_delete_title">Delete property?</string>
+    <string name="list_property_delete_message">Delete %1$s? This action cannot be undone.</string>
+    <string name="list_property_delete_blocked_title">Property cannot be deleted</string>
+    <string name="list_property_delete_blocked_message">%1$s still has booking, expense, or blocked-date history. Remove those records first, or keep the property inactive so historical data stays intact.</string>
+
+    <string name="list_expense_action_delete">Delete expense</string>
+    <string name="list_expense_delete_title">Delete expense?</string>
+    <string name="list_expense_delete_message">Delete this %1$s expense? Money totals will update immediately. This action cannot be undone.</string>
+
+    <string name="list_payment_action_delete">Delete payment</string>
+    <string name="list_payment_delete_title">Delete payment?</string>
+    <string name="list_payment_delete_message">Delete this %1$s payment? The booking balance and revenue totals will update immediately. This action cannot be undone.</string>
+</resources>

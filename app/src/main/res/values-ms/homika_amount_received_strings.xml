@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="homika_amount_received">Jumlah diterima</string>
+    <string name="homika_amount_received_default_hint">Default: %1$d malam × %2$s = %3$s. Anda boleh ubah kepada jumlah sebenar yang diterima.</string>
+    <string name="homika_amount_received_custom_hint">Rujukan kadar: %1$d malam × %2$s = %3$s. Jumlah yang anda masukkan akan dikekalkan.</string>
+    <string name="homika_average_amount_received">Purata diterima / tempahan</string>
+    <string name="homika_money_live_subtitle_v2">Jumlah diterima daripada tempahan, kos operasi dan pendapatan bersih bagi setiap bulan.</string>
+    <string name="homika_no_money_activity_body_v2">Jumlah diterima daripada tempahan dan perbelanjaan bulan ini akan muncul di sini.</string>
+    <string name="homika_reports_live_subtitle_v2">Fahami hasil yang diterima, kadar penghunian dan sumber tempahan.</string>
+    <string name="homika_report_formula_body_v2">Hasil menggunakan Jumlah Diterima pada tempahan yang tarikh daftar masuknya berada dalam tempoh dipilih. Penghunian ikut malam penginapan. Deposit keselamatan kekal berasingan daripada hasil.</string>
+    <string name="homika_deposit_separate_body_v2">Wang deposit keselamatan dijejak berasingan dan tidak pernah menambah Jumlah Diterima atau hasil tempahan.</string>
+    <string name="homika_app_lock_off_body_v2">Tetapkan PIN untuk melindungi tempahan, butiran tetamu dan data perniagaan.</string>
+    <string name="homika_restore_confirm_body_v2">Sandaran: %1$s
+Homestay: %2$d
+Tempahan: %3$d
+Perbelanjaan: %4$d
+Deposit: %5$d
+Tarikh disekat: %6$d
+Jumlah rekod: %7$d
+
+Data perniagaan Homika semasa akan diganti.</string>
+</resources>

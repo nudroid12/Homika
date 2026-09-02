@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="homika_amount_received">Amount received</string>
+    <string name="homika_amount_received_default_hint">Default: %1$d nights × %2$s = %3$s. You can change it to the actual amount received.</string>
+    <string name="homika_amount_received_custom_hint">Rate guide: %1$d nights × %2$s = %3$s. Your entered amount will be kept.</string>
+    <string name="homika_average_amount_received">Average received / booking</string>
+    <string name="homika_money_live_subtitle_v2">Amount received from bookings, operating costs and net income for each month.</string>
+    <string name="homika_no_money_activity_body_v2">Booking amounts received and expenses for this month will appear here.</string>
+    <string name="homika_reports_live_subtitle_v2">Understand received revenue, occupancy and where bookings come from.</string>
+    <string name="homika_report_formula_body_v2">Revenue uses the Amount Received stored on bookings whose check-in falls in the selected period. Occupancy follows stayed nights. Security deposits stay separate from revenue.</string>
+    <string name="homika_deposit_separate_body_v2">Security deposit money is tracked separately and never increases Amount Received or booking revenue.</string>
+    <string name="homika_app_lock_off_body_v2">Set a PIN to protect bookings, guest details and business data.</string>
+    <string name="homika_restore_confirm_body_v2">Backup: %1$s
+Properties: %2$d
+Bookings: %3$d
+Expenses: %4$d
+Deposits: %5$d
+Blocked dates: %6$d
+Total records: %7$d
+
+Current Homika business data will be replaced.</string>
+</resources>
