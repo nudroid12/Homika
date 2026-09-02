@@ -340,7 +340,7 @@ class HomikaUpdateManager(
     }
 
     companion object {
-        const val ACTION_INSTALL_STATUS = "com.homiq.app.UPDATE_INSTALL_STATUS"
+        const val ACTION_INSTALL_STATUS = "com.homika.app.UPDATE_INSTALL_STATUS"
         private const val PREFS_NAME = "homika_updater"
         private const val KEY_LAST_CHECK = "last_check_ms"
         private const val UPDATE_DIR = "updates"

@@ -10,31 +10,22 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.homiq.app"
+        applicationId = "com.homika.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = System.getenv("HOMIKA_VERSION_CODE")?.toIntOrNull() ?: 10019
-        versionName = System.getenv("HOMIKA_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "1.0.19"
+        versionCode = System.getenv("HOMIKA_VERSION_CODE")?.toIntOrNull() ?: 10000
+        versionName = System.getenv("HOMIKA_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
-        create("homiqDebug") {
-            // Stable development certificate retained so installed Phase 10 debug builds
-            // and the existing Google OAuth debug client keep working.
-            storeFile = file("homiq-debug.keystore")
-            storePassword = "homiq-debug"
-            keyAlias = "homiqdebug"
-            keyPassword = "homiq-debug"
-        }
-
-        val releaseStorePath = System.getenv("HOMIKA_KEYSTORE_PATH") ?: System.getenv("HOMIQU_KEYSTORE_PATH")
-        val releaseStorePassword = System.getenv("HOMIKA_KEYSTORE_PASSWORD") ?: System.getenv("HOMIQU_KEYSTORE_PASSWORD")
-        val releaseKeyAlias = (System.getenv("HOMIKA_KEY_ALIAS") ?: System.getenv("HOMIQU_KEY_ALIAS"))
+        val releaseStorePath = System.getenv("HOMIKA_KEYSTORE_PATH")
+        val releaseStorePassword = System.getenv("HOMIKA_KEYSTORE_PASSWORD")
+        val releaseKeyAlias = System.getenv("HOMIKA_KEY_ALIAS")
             ?.takeIf { it.isNotBlank() }
             ?: "homika"
-        val releaseKeyPassword = (System.getenv("HOMIKA_KEY_PASSWORD") ?: System.getenv("HOMIQU_KEY_PASSWORD"))
+        val releaseKeyPassword = System.getenv("HOMIKA_KEY_PASSWORD")
             ?.takeIf { it.isNotBlank() }
             ?: releaseStorePassword
 
@@ -55,7 +46,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            signingConfig = signingConfigs.getByName("homiqDebug")
+            // Use the normal Android debug certificate. Do not reuse HOMIQ Personal signing.
         }
 
         getByName("release") {

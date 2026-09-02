@@ -107,7 +107,7 @@ internal class GitHubReleaseClient(
 
     companion object {
         private const val LATEST_RELEASE_URL =
-            "https://api.github.com/repos/IzokaGM/HOMIQ/releases/latest"
+            "https://api.github.com/repos/nudroid12/Homika/releases/latest"
     }
 }
 
