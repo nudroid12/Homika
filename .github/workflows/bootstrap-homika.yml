@@ -1,1 +1,167 @@
-.github/workflows/bootstrap-homika.yml
+name: Bootstrap Homika Pro Source
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-homika-pro
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Find source ZIP
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="$(find . -maxdepth 1 -type f -name '*.zip' -printf '%f\n' | sort | head -n1)"
+
+          if [ -z "${ZIP:-}" ]; then
+            echo "No source ZIP found in repository root."
+            exit 1
+          fi
+
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "Using source archive: $ZIP"
+
+      - name: Validate and extract source
+        shell: python
+        env:
+          SOURCE_ZIP: ${{ steps.source.outputs.zip }}
+        run: |
+          import os
+          import pathlib
+          import shutil
+          import stat
+          import tempfile
+          import zipfile
+
+          repo = pathlib.Path.cwd().resolve()
+          archive = repo / os.environ["SOURCE_ZIP"]
+
+          temp_root = pathlib.Path(tempfile.mkdtemp(prefix="homika-bootstrap-"))
+          extract_root = temp_root / "extract"
+          extract_root.mkdir(parents=True)
+
+          with zipfile.ZipFile(archive) as zf:
+              members = zf.infolist()
+
+              for info in members:
+                  name = info.filename.replace("\\", "/")
+                  pure = pathlib.PurePosixPath(name)
+
+                  if name.startswith("/") or ".." in pure.parts:
+                      raise SystemExit(f"Unsafe ZIP path: {name}")
+
+                  mode = info.external_attr >> 16
+                  if stat.S_ISLNK(mode):
+                      raise SystemExit(f"Symlink is not allowed: {name}")
+
+              zf.extractall(extract_root)
+
+          entries = [p for p in extract_root.iterdir() if p.name != "__MACOSX"]
+
+          if len(entries) == 1 and entries[0].is_dir():
+              source_root = entries[0]
+          else:
+              source_root = extract_root
+
+          for item in source_root.iterdir():
+              if item.name in {".git", "__MACOSX"}:
+                  continue
+
+              destination = repo / item.name
+
+              if item.is_dir():
+                  destination.mkdir(parents=True, exist_ok=True)
+                  shutil.copytree(
+                      item,
+                      destination,
+                      dirs_exist_ok=True,
+                      copy_function=shutil.copy2,
+                  )
+              else:
+                  shutil.copy2(item, destination)
+
+          print(f"Extracted source root: {source_root}")
+          print("Top-level source copied into repository root.")
+
+      - name: Verify Android project baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f settings.gradle.kts || {
+            echo "settings.gradle.kts missing after extraction."
+            exit 1
+          }
+
+          test -f app/build.gradle.kts || {
+            echo "app/build.gradle.kts missing after extraction."
+            exit 1
+          }
+
+          test -f app/src/main/AndroidManifest.xml || {
+            echo "AndroidManifest.xml missing after extraction."
+            exit 1
+          }
+
+          grep -F 'applicationId = "com.homiq.app"' app/build.gradle.kts >/dev/null || {
+            echo "Expected HOMIQ baseline package com.homiq.app was not found."
+            exit 1
+          }
+
+          echo "Baseline verified: com.homiq.app"
+
+      - name: Remove uploaded source ZIP
+        shell: bash
+        env:
+          SOURCE_ZIP: ${{ steps.source.outputs.zip }}
+        run: |
+          set -euo pipefail
+          rm -f -- "$SOURCE_ZIP"
+
+      - name: Commit extracted source
+        shell: bash
+        env:
+          SOURCE_ZIP: ${{ steps.source.outputs.zip }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+
+          git commit -m "chore: initialise Homika Pro from HOMIQ baseline"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## Homika Pro baseline ready"
+            echo
+            echo "- Source ZIP extracted into repository root."
+            echo "- Uploaded ZIP removed from repository."
+            echo "- Android baseline verified as com.homiq.app."
+            echo "- No package rename or Google Drive removal was performed."
+          } >> "$GITHUB_STEP_SUMMARY"
