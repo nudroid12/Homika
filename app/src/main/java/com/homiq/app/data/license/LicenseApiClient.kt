@@ -90,6 +90,7 @@ class LicenseApiClient(
                             activationToken = token,
                             licenseHint = activation.optString("license_hint", "••••")
                                 .ifBlank { "••••" },
+                            planType = LicensePlanType.fromApi(activation.optString("plan_type", "annual")),
                             expiresAt = expiresAt,
                             maxDevices = activation.optInt("max_devices", 3).coerceAtLeast(1),
                             activeDevices = activation.optInt("active_devices", 0).coerceAtLeast(0),
@@ -107,6 +108,9 @@ class LicenseApiClient(
 
                 LicenseApiResult.Rejected(
                     code = error,
+                    planType = json?.optString("plan_type")
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let(LicensePlanType::fromApi),
                     expiresAt = json?.optString("expires_at")?.takeIf { it.isNotBlank() },
                     maxDevices = json?.optInt("max_devices", -1)?.takeIf { it >= 0 },
                     activeDevices = json?.optInt("active_devices", -1)?.takeIf { it >= 0 },

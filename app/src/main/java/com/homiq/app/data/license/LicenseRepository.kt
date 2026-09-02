@@ -32,7 +32,7 @@ class LicenseRepository(
             nowMillis = nowMillis,
         )
 
-        if (nowMillis >= stored.expiresAtEpochMillis) {
+        if (stored.planType != LicensePlanType.LIFETIME && nowMillis >= stored.expiresAtEpochMillis) {
             return uiFromStored(
                 stored = stored,
                 access = LicenseAccess.EXPIRED,
@@ -50,6 +50,7 @@ class LicenseRepository(
 
         val trusted = stored.copy(
             licenseHint = verified.licenseHint,
+            planType = verified.planType,
             expiresAtEpochMillis = verified.expiresAtEpochMillis,
             maxDevices = verified.maxDevices,
         )
@@ -68,7 +69,7 @@ class LicenseRepository(
 
         preferences.markObserved(nowMillis)
 
-        if (nowMillis >= trusted.expiresAtEpochMillis) {
+        if (trusted.planType != LicensePlanType.LIFETIME && nowMillis >= trusted.expiresAtEpochMillis) {
             return uiFromStored(
                 stored = trusted,
                 access = LicenseAccess.EXPIRED,
@@ -99,7 +100,7 @@ class LicenseRepository(
         if (!preferences.legacyLicenseKey().isNullOrBlank()) return true
 
         val stored = preferences.read() ?: return false
-        if (nowMillis >= stored.expiresAtEpochMillis) return true
+        if (stored.planType != LicensePlanType.LIFETIME && nowMillis >= stored.expiresAtEpochMillis) return true
         if (stored.lastValidatedAtMillis <= 0L) return true
         if (nowMillis + CLOCK_ROLLBACK_TOLERANCE_MS < stored.lastObservedAtMillis) return true
         return nowMillis - stored.lastValidatedAtMillis >= VALIDATION_INTERVAL_MS
@@ -188,7 +189,7 @@ class LicenseRepository(
 
         val canUseGrace =
             stored != null &&
-                now < stored.expiresAtEpochMillis &&
+                (stored.planType == LicensePlanType.LIFETIME || now < stored.expiresAtEpochMillis) &&
                 stored.lastValidatedAtMillis > 0L &&
                 now >= stored.lastObservedAtMillis - CLOCK_ROLLBACK_TOLERANCE_MS &&
                 now - stored.lastValidatedAtMillis <= OFFLINE_GRACE_MS &&
@@ -211,6 +212,7 @@ class LicenseRepository(
                 access = LicenseAccess.NEEDS_INTERNET,
                 licenseKey = key,
                 licenseHint = stored?.licenseHint.orEmpty(),
+                planType = stored?.planType ?: LicensePlanType.ANNUAL,
                 expiresAt = stored?.expiresAt,
                 maxDevices = stored?.maxDevices ?: 3,
                 activeDevices = stored?.activeDevices ?: 0,
@@ -254,6 +256,7 @@ class LicenseRepository(
             access = access,
             licenseKey = key,
             licenseHint = stored?.licenseHint.orEmpty(),
+            planType = result.planType ?: stored?.planType ?: LicensePlanType.ANNUAL,
             expiresAt = result.expiresAt ?: stored?.expiresAt,
             maxDevices = result.maxDevices ?: stored?.maxDevices ?: 3,
             activeDevices = result.activeDevices ?: stored?.activeDevices ?: 0,
@@ -292,6 +295,7 @@ class LicenseRepository(
 
         val trustedActivation = activation.copy(
             licenseHint = verified.licenseHint,
+            planType = verified.planType,
             maxDevices = verified.maxDevices,
         )
 
@@ -311,6 +315,7 @@ class LicenseRepository(
         return LicenseUiState(
             access = LicenseAccess.ACTIVE,
             licenseHint = trustedActivation.licenseHint,
+            planType = trustedActivation.planType,
             expiresAt = trustedActivation.expiresAt,
             maxDevices = trustedActivation.maxDevices,
             activeDevices = trustedActivation.activeDevices,
@@ -327,6 +332,7 @@ class LicenseRepository(
         LicenseUiState(
             access = access,
             licenseHint = stored.licenseHint,
+            planType = stored.planType,
             expiresAt = stored.expiresAt,
             maxDevices = stored.maxDevices,
             activeDevices = stored.activeDevices,

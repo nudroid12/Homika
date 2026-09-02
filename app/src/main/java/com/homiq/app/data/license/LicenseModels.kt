@@ -11,10 +11,23 @@ enum class LicenseAccess {
     INVALID,
 }
 
+enum class LicensePlanType(val apiValue: String) {
+    TRIAL("trial"),
+    MONTHLY("monthly"),
+    ANNUAL("annual"),
+    LIFETIME("lifetime");
+
+    companion object {
+        fun fromApi(value: String?): LicensePlanType =
+            entries.firstOrNull { it.apiValue == value?.trim()?.lowercase() } ?: ANNUAL
+    }
+}
+
 data class LicenseUiState(
     val access: LicenseAccess = LicenseAccess.CHECKING,
     val licenseKey: String = "",
     val licenseHint: String = "",
+    val planType: LicensePlanType = LicensePlanType.ANNUAL,
     val expiresAt: String? = null,
     val maxDevices: Int = 3,
     val activeDevices: Int = 0,
@@ -27,6 +40,7 @@ data class LicenseUiState(
 data class StoredLicense(
     val activationToken: String,
     val licenseHint: String,
+    val planType: LicensePlanType,
     val expiresAt: String,
     val expiresAtEpochMillis: Long,
     val maxDevices: Int,
@@ -38,6 +52,7 @@ data class StoredLicense(
 data class LicenseActivation(
     val activationToken: String,
     val licenseHint: String,
+    val planType: LicensePlanType,
     val expiresAt: String,
     val maxDevices: Int,
     val activeDevices: Int,
@@ -50,6 +65,7 @@ sealed interface LicenseApiResult {
 
     data class Rejected(
         val code: String,
+        val planType: LicensePlanType? = null,
         val expiresAt: String? = null,
         val maxDevices: Int? = null,
         val activeDevices: Int? = null,
@@ -72,6 +88,7 @@ sealed interface LicenseDeactivateResult {
 }
 
 data class VerifiedActivationToken(
+    val planType: LicensePlanType,
     val expiresAtEpochMillis: Long,
     val licenseHint: String,
     val maxDevices: Int,

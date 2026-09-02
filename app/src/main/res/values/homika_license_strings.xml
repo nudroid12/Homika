@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="license_homika_pro">Homika Pro</string>
-    <string name="license_annual_label">Annual licence</string>
+    <string name="license_annual_label">Secure licence access</string>
     <string name="license_checking">Checking licence</string>
     <string name="license_checking_body">Homika is verifying this device. This normally takes only a moment.</string>
     <string name="license_activate_title">Activate Homika Pro</string>
@@ -23,7 +23,7 @@
     <string name="license_error_invalid_body">Check the licence code and try again.</string>
 
     <string name="license_settings_title">Homika Pro licence</string>
-    <string name="license_settings_supporting">Licence, expiry and devices</string>
+    <string name="license_settings_supporting">Plan, expiry and devices</string>
     <string name="license_settings_active">Active</string>
     <string name="license_manage_title">Homika Pro licence</string>
     <string name="license_manage_subtitle">Manage this device and verify your subscription.</string>
@@ -48,4 +48,9 @@
     <string name="license_verify_success">Licence verified successfully. Server status is up to date.</string>
     <string name="license_verify_offline">Could not reach the licence server. Homika is still active using the offline grace period.</string>
     <string name="license_verify_failed">Licence verification failed. Check your connection and licence status, then try again.</string>
+    <string name="license_plan">Plan</string>
+    <string name="license_plan_trial">Trial</string>
+    <string name="license_plan_monthly">Monthly</string>
+    <string name="license_plan_annual">Annual</string>
+    <string name="license_plan_lifetime">Lifetime</string>
 </resources>

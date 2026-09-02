@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="license_homika_pro">Homika Pro</string>
-    <string name="license_annual_label">Lesen tahunan</string>
+    <string name="license_annual_label">Akses lesen selamat</string>
     <string name="license_checking">Menyemak lesen</string>
     <string name="license_checking_body">Homika sedang mengesahkan peranti ini. Biasanya hanya mengambil masa seketika.</string>
     <string name="license_activate_title">Aktifkan Homika Pro</string>
@@ -23,7 +23,7 @@
     <string name="license_error_invalid_body">Semak kod lesen dan cuba lagi.</string>
 
     <string name="license_settings_title">Lesen Homika Pro</string>
-    <string name="license_settings_supporting">Lesen, tarikh tamat dan peranti</string>
+    <string name="license_settings_supporting">Pelan, tarikh tamat dan peranti</string>
     <string name="license_settings_active">Aktif</string>
     <string name="license_manage_title">Lesen Homika Pro</string>
     <string name="license_manage_subtitle">Urus peranti ini dan semak status langganan.</string>
@@ -48,4 +48,9 @@
     <string name="license_verify_success">Lesen berjaya disahkan. Status pelayan kini terkini.</string>
     <string name="license_verify_offline">Pelayan lesen tidak dapat dicapai. Homika masih aktif menggunakan tempoh offline.</string>
     <string name="license_verify_failed">Pengesahan lesen gagal. Semak sambungan internet dan status lesen, kemudian cuba lagi.</string>
+    <string name="license_plan">Pelan</string>
+    <string name="license_plan_trial">Percubaan</string>
+    <string name="license_plan_monthly">Bulanan</string>
+    <string name="license_plan_annual">Tahunan</string>
+    <string name="license_plan_lifetime">Seumur hidup</string>
 </resources>

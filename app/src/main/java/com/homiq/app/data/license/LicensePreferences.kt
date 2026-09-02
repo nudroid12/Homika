@@ -36,6 +36,7 @@ class LicensePreferences(
         return StoredLicense(
             activationToken = token,
             licenseHint = json.optString("license_hint", "••••").ifBlank { "••••" },
+            planType = LicensePlanType.fromApi(json.optString("plan_type", "annual")),
             expiresAt = expiresAt,
             expiresAtEpochMillis = expiryMillis,
             maxDevices = json.optInt("max_devices", 3).coerceAtLeast(1),
@@ -58,6 +59,7 @@ class LicensePreferences(
             StoredLicense(
                 activationToken = activation.activationToken,
                 licenseHint = activation.licenseHint,
+                planType = activation.planType,
                 expiresAt = activation.expiresAt,
                 expiresAtEpochMillis = expiresAtEpochMillis,
                 maxDevices = activation.maxDevices,
@@ -104,6 +106,7 @@ class LicensePreferences(
         val json = JSONObject()
             .put("activation_token", stored.activationToken)
             .put("license_hint", stored.licenseHint)
+            .put("plan_type", stored.planType.apiValue)
             .put("expires_at", stored.expiresAt)
             .put("expires_at_millis", stored.expiresAtEpochMillis)
             .put("max_devices", stored.maxDevices)

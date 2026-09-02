@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.homiq.app.R
+import com.homiq.app.data.license.LicensePlanType
 import com.homiq.app.data.license.LicenseUiState
 import java.text.DateFormat
 import java.util.Date
@@ -172,9 +174,22 @@ fun LicenseManagementScreen(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
                 )
                 LicenseInfoRow(
+                    icon = Icons.Outlined.VerifiedUser,
+                    label = stringResource(R.string.license_plan),
+                    value = licensePlanLabel(state.planType),
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 52.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                )
+                LicenseInfoRow(
                     icon = Icons.Outlined.Event,
                     label = stringResource(R.string.license_expires),
-                    value = state.expiresAt ?: stringResource(R.string.license_unknown),
+                    value = if (state.planType == LicensePlanType.LIFETIME) {
+                        stringResource(R.string.license_plan_lifetime)
+                    } else {
+                        state.expiresAt ?: stringResource(R.string.license_unknown)
+                    },
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 52.dp),
@@ -313,6 +328,15 @@ fun LicenseManagementScreen(
         )
     }
 }
+
+@Composable
+private fun licensePlanLabel(planType: LicensePlanType): String =
+    when (planType) {
+        LicensePlanType.TRIAL -> stringResource(R.string.license_plan_trial)
+        LicensePlanType.MONTHLY -> stringResource(R.string.license_plan_monthly)
+        LicensePlanType.ANNUAL -> stringResource(R.string.license_plan_annual)
+        LicensePlanType.LIFETIME -> stringResource(R.string.license_plan_lifetime)
+    }
 
 @Composable
 private fun lastVerifiedText(lastValidatedAtMillis: Long): String {
