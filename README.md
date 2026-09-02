@@ -1,4 +1,4 @@
-# HOMIQ
+# HOMIKA
 
 HOMIQ is a private, owner-only homestay management app.
 
