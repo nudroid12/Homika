@@ -5,6 +5,7 @@ import com.homiq.app.data.account.AccountPreferences
 import com.homiq.app.data.backup.BackupPreferences
 import com.homiq.app.data.backup.HomiqBackupService
 import com.homiq.app.data.local.HomiqDatabase
+import com.homiq.app.data.license.LicenseRepository
 import com.homiq.app.data.repository.BlockedDateRepository
 import com.homiq.app.data.repository.BookingRepository
 import com.homiq.app.data.repository.DepositRepository
@@ -31,6 +32,10 @@ class HomiqAppContainer(
 
     val appLockPreferences: AppLockPreferences by lazy {
         AppLockPreferences(context)
+    }
+
+    val licenseRepository: LicenseRepository by lazy {
+        LicenseRepository(context)
     }
 
     val appLockService: AppLockService by lazy {

@@ -18,6 +18,14 @@ class HomiqViewModelFactory(
     ): T {
         return when {
             modelClass.isAssignableFrom(
+                LicenseViewModel::class.java,
+            ) ->
+                LicenseViewModel(
+                    repository =
+                        container.licenseRepository,
+                ) as T
+
+            modelClass.isAssignableFrom(
                 AccountViewModel::class.java,
             ) ->
                 AccountViewModel(

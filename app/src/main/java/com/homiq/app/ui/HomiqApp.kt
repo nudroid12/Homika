@@ -55,6 +55,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.homiq.app.BuildConfig
 import com.homiq.app.HomiqApplication
 import com.homiq.app.R
+import com.homiq.app.data.license.LicenseAccess
 import com.homiq.app.data.preferences.OnboardingPreferences
 import com.homiq.app.ui.components.HomikaUpdateDialog
 import com.homiq.app.ui.screens.AppLockScreen
@@ -67,6 +68,7 @@ import com.homiq.app.ui.screens.CalendarScreen
 import com.homiq.app.ui.screens.DepositScreen
 import com.homiq.app.ui.screens.ExpenseFormScreen
 import com.homiq.app.ui.screens.HomeScreen
+import com.homiq.app.ui.screens.LicenseActivationScreen
 import com.homiq.app.ui.screens.MoneyScreen
 import com.homiq.app.ui.screens.MoreScreen
 import com.homiq.app.ui.screens.OnboardingScreen
@@ -82,6 +84,7 @@ import com.homiq.app.ui.viewmodel.CalendarViewModel
 import com.homiq.app.ui.viewmodel.DashboardViewModel
 import com.homiq.app.ui.viewmodel.FinanceViewModel
 import com.homiq.app.ui.viewmodel.HomiqViewModelFactory
+import com.homiq.app.ui.viewmodel.LicenseViewModel
 import com.homiq.app.ui.viewmodel.MoneyViewModel
 import com.homiq.app.ui.viewmodel.PropertyViewModel
 import com.homiq.app.ui.viewmodel.ReportsViewModel
@@ -117,6 +120,17 @@ private enum class HomiqRoute {
 fun HomiqApp() {
     val application = LocalContext.current.applicationContext as HomiqApplication
     val factory = remember(application) { HomiqViewModelFactory(application.container) }
+
+    val licenseViewModel: LicenseViewModel = viewModel(factory = factory)
+    val licenseState by licenseViewModel.state.collectAsStateWithLifecycle()
+    if (licenseState.access != LicenseAccess.ACTIVE) {
+        LicenseActivationScreen(
+            state = licenseState,
+            onActivate = licenseViewModel::activate,
+            onRetry = licenseViewModel::retry,
+        )
+        return
+    }
 
     val appLockViewModel: AppLockViewModel = viewModel(factory = factory)
     val appLockState by appLockViewModel.state.collectAsStateWithLifecycle()
