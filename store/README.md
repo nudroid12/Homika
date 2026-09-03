@@ -1,15 +1,13 @@
-# Homika Store Foundation
+# Homika Pro Store - Patch 13B
 
-Static Cloudflare Pages site for Homika Pro Patch 13A.
+Static Cloudflare Pages frontend for the Homika Pro catalogue and checkout-intent flow.
 
-Recommended Cloudflare Pages configuration:
+Required before public use:
+1. Deploy this `store/` directory to Cloudflare Pages.
+2. Set Worker environment variable `HOMIKA_STORE_URL` to the Pages HTTPS URL.
+3. Apply D1 migration `0008-commerce-checkout-foundation.sql`.
+4. Deploy Worker v13.
 
-- Repository: the Homika Pro repository
-- Root directory: `store`
-- Framework preset: None
-- Build command: leave empty
-- Build output directory: `.`
-
-After the Pages URL is live, set Worker environment variable `HOMIKA_STORE_URL` to that HTTPS URL. The existing Android Buy/Renew links go through `/buy/homika-pro`, so installed APKs will automatically start opening this store without another app patch.
-
-Patch 13A does not process money. Plan buttons intentionally stop at the checkout foundation. Payment gateway, signed webhook verification, automatic licence issuance and renewal are Patch 13B.
+Patch 13B does NOT charge customers yet. It creates secure checkout intents and the same-licence renewal path.
+The generic `/v1/store/payment-webhook` completion endpoint is included for the next payment-gateway patch.
+Do not set or expose `HOMIKA_PAYMENT_WEBHOOK_SECRET` in this static site.

@@ -81,6 +81,7 @@ class LicenseRepository(
         val trusted = stored.copy(
             licenseHint = verified.licenseHint,
             planType = verified.planType,
+            planKey = verified.planKey.ifBlank { stored.planKey },
             expiresAtEpochMillis = verified.expiresAtEpochMillis,
             maxDevices = verified.maxDevices,
         )
@@ -235,6 +236,21 @@ class LicenseRepository(
         }
     }
 
+    suspend fun createRenewalCheckout(): LicenseCheckoutResult {
+        val stored = preferences.read()
+            ?: return LicenseCheckoutResult.Rejected("license_required")
+
+        val verified = ActivationTokenVerifier.verify(
+            token = stored.activationToken,
+            expectedDeviceId = deviceId,
+        ) ?: return LicenseCheckoutResult.Rejected("invalid_activation_token")
+
+        return api.createRenewalCheckout(
+            activationToken = stored.activationToken,
+            deviceId = deviceId,
+        )
+    }
+
     suspend fun listDevices(): LicenseDevicesResult {
         val credentials = cloudCredentials()
             ?: return LicenseDevicesResult.Rejected("license_required")
@@ -286,6 +302,7 @@ class LicenseRepository(
                 licenseKey = key,
                 licenseHint = stored?.licenseHint.orEmpty(),
                 planType = stored?.planType ?: LicensePlanType.ANNUAL,
+                planKey = stored?.planKey.orEmpty(),
                 expiresAt = stored?.expiresAt,
                 expiresAtEpochMillis = stored?.expiresAtEpochMillis ?: 0L,
                 maxDevices = stored?.maxDevices ?: 3,
@@ -331,6 +348,7 @@ class LicenseRepository(
             licenseKey = key,
             licenseHint = stored?.licenseHint.orEmpty(),
             planType = result.planType ?: stored?.planType ?: LicensePlanType.ANNUAL,
+            planKey = stored?.planKey.orEmpty(),
             expiresAt = result.expiresAt ?: stored?.expiresAt,
             expiresAtEpochMillis = parseExpiryMillis(result.expiresAt ?: stored?.expiresAt.orEmpty()) ?: stored?.expiresAtEpochMillis ?: 0L,
             maxDevices = result.maxDevices ?: stored?.maxDevices ?: 3,
@@ -371,6 +389,7 @@ class LicenseRepository(
         val trustedActivation = activation.copy(
             licenseHint = verified.licenseHint,
             planType = verified.planType,
+            planKey = verified.planKey.ifBlank { activation.planKey },
             maxDevices = verified.maxDevices,
         )
 
@@ -391,6 +410,7 @@ class LicenseRepository(
             access = LicenseAccess.ACTIVE,
             licenseHint = trustedActivation.licenseHint,
             planType = trustedActivation.planType,
+            planKey = trustedActivation.planKey,
             expiresAt = trustedActivation.expiresAt,
             expiresAtEpochMillis = verified.expiresAtEpochMillis,
             maxDevices = trustedActivation.maxDevices,
@@ -409,6 +429,7 @@ class LicenseRepository(
             access = access,
             licenseHint = stored.licenseHint,
             planType = stored.planType,
+            planKey = stored.planKey,
             expiresAt = stored.expiresAt,
             expiresAtEpochMillis = stored.expiresAtEpochMillis,
             maxDevices = stored.maxDevices,

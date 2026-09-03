@@ -1,105 +1,20 @@
 <!doctype html>
 <html lang="ms">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111713">
-  <title>Homika Pro</title>
-  <meta name="description" content="Homika Pro untuk urus tempahan, kewangan, Cloud Sync dan Cloud Backup homestay.">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1f1a"><title>Homika Pro</title>
+  <meta name="description" content="Pelan Homika Pro untuk Cloud Sync, Cloud Backup dan pengurusan homestay pada sehingga 3 peranti.">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <header class="nav-shell">
-    <nav class="nav">
-      <a class="brand" href="#top" aria-label="Homika Pro">
-        <span class="brand-mark">H</span>
-        <span>Homika Pro</span>
-      </a>
-      <a class="nav-link" href="#pricing">Harga</a>
-    </nav>
-  </header>
-
-  <main id="top">
-    <section class="hero section">
-      <div class="eyebrow">HARGA PELANCARAN</div>
-      <h1>Urus homestay dengan lebih kemas, di mana-mana peranti.</h1>
-      <p class="hero-copy">Satu lesen Homika Pro menyokong sehingga 3 peranti dengan Cloud Sync, Cloud Backup dan semua fungsi Pro.</p>
-      <div class="hero-actions">
-        <a class="button primary" href="#pricing">Lihat pelan</a>
-        <a class="button secondary" href="#trial">Cuba 7 hari percuma</a>
-      </div>
-      <div class="trust-row">
-        <span>3 peranti</span><span>Cloud Sync</span><span>Cloud Backup</span><span>Data lokal kekal</span>
-      </div>
-    </section>
-
-    <section class="section" id="pricing">
-      <div class="section-heading">
-        <div>
-          <div class="eyebrow">PILIH TEMPOH</div>
-          <h2>Harga mudah, fungsi sama.</h2>
-        </div>
-        <p>Semua pelan berbayar membuka fungsi Homika Pro yang sama. Bezanya hanya tempoh lesen.</p>
-      </div>
-
-      <div id="catalog-status" class="catalog-status" role="status">Memuatkan harga terkini…</div>
-      <div id="plans" class="plans" aria-live="polite"></div>
-    </section>
-
-    <section class="section trial" id="trial">
-      <div class="trial-card">
-        <div>
-          <div class="eyebrow">CUBA DULU</div>
-          <h2>Trial percuma 7 hari.</h2>
-          <p>Tak perlu kad. Semua fungsi Pro dibuka pada 1 peranti. Setiap peranti dan email hanya boleh claim trial sekali.</p>
-        </div>
-        <div class="trial-steps">
-          <span>1. Buka Homika Pro</span>
-          <span>2. Masukkan email</span>
-          <span>3. Tekan “Mulakan trial percuma 7 hari”</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="section renew" id="renew">
-      <div class="renew-card">
-        <div>
-          <div class="eyebrow">SUDAH ADA LESEN?</div>
-          <h2>Renew kod lesen yang sama.</h2>
-          <p>Renewal akan menambah tempoh selepas tarikh tamat semasa. Baki yang masih ada tidak dibuang.</p>
-        </div>
-        <form id="renew-form" class="renew-form">
-          <label>
-            Kod lesen
-            <input id="renew-license" type="text" inputmode="text" autocomplete="off" placeholder="HMK-XXXX-XXXX-XXXX" maxlength="80">
-          </label>
-          <label>
-            Tempoh renewal
-            <select id="renew-plan"></select>
-          </label>
-          <button class="button primary" type="submit">Teruskan renewal</button>
-          <p class="form-note">Pembayaran sebenar akan diaktifkan dalam fasa payment seterusnya.</p>
-        </form>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <span>Homika Pro</span>
-    <span>Freshly built for homestay operations.</span>
-  </footer>
-
-  <dialog id="checkout-dialog">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button" aria-label="Tutup">×</button>
-      <div class="eyebrow">CHECKOUT FOUNDATION</div>
-      <h3 id="dialog-title">Homika Pro</h3>
-      <p id="dialog-copy"></p>
-      <div class="dialog-summary" id="dialog-summary"></div>
-      <p class="form-note">FPX/payment gateway dan webhook automatik akan disambungkan dalam Patch 13B. Tiada bayaran akan dicaj dari halaman ini sekarang.</p>
-    </div>
-  </dialog>
-
-  <script src="./app.js" defer></script>
-</body>
-</html>
+<header class="nav-shell"><nav class="nav"><a class="brand" href="#top"><span class="brand-mark">H</span><span>Homika Pro</span></a><a class="nav-link" href="#pricing">Harga</a></nav></header>
+<main id="top">
+<section class="hero section"><div class="eyebrow">HARGA PELANCARAN</div><h1>Homika Pro, satu lesen untuk sehingga 3 peranti.</h1><p class="hero-copy">Semua pelan berbayar membuka fungsi Pro yang sama termasuk Homika Cloud Sync dan encrypted Cloud Backup.</p><div class="hero-actions"><a class="button primary" href="#pricing">Pilih pelan</a><a class="button secondary" href="#trial">Cuba 7 hari percuma</a></div><div class="trust-row"><span>3 peranti</span><span>Cloud Sync</span><span>Cloud Backup</span><span>Data lokal kekal</span></div></section>
+<section class="section" id="pricing"><div class="section-heading"><div><div class="eyebrow">PILIH TEMPOH</div><h2>Fungsi sama. Pilih tempoh yang sesuai.</h2></div><p>Renew awal tidak membuang baki tempoh. Tempoh baharu ditambah selepas tarikh tamat semasa.</p></div><div id="catalog-status" class="catalog-status">Memuatkan harga terkini…</div><div id="plans" class="plans"></div></section>
+<section class="section trial" id="trial"><div class="trial-card"><div><div class="eyebrow">CUBA DULU</div><h2>Trial percuma 7 hari.</h2><p>Tak perlu kad. Semua fungsi Pro dibuka pada 1 peranti. Setiap peranti dan email hanya boleh claim trial sekali.</p></div><div class="trial-steps"><span>1. Buka Homika Pro</span><span>2. Masukkan email</span><span>3. Tekan “Mulakan trial percuma 7 hari”</span></div></div></section>
+<section class="section renew" id="renew"><div class="renew-card"><div><div class="eyebrow">SUDAH ADA LESEN?</div><h2>Renew kod lesen yang sama.</h2><p>Masukkan lesen sedia ada jika membuka laman ini secara manual. Jika dibuka terus dari aplikasi Homika, lesen dipaut automatik.</p></div><form id="renew-form" class="renew-form"><label>Email<input id="renew-email" type="email" autocomplete="email" placeholder="nama@email.com" maxlength="254" required></label><label>Kod lesen<input id="renew-license" type="text" autocomplete="off" placeholder="HMK-XXXX-XXXX-XXXX" maxlength="80" required></label><label>Tempoh renewal<select id="renew-plan"></select></label><button class="button primary" type="submit">Sediakan renewal</button><p class="form-note">Tiada bayaran dicaj sehingga payment gateway rasmi disambungkan.</p></form></div></section>
+</main>
+<footer><span>Homika Pro</span><span>Local-first · Cloud-enabled</span></footer>
+<dialog id="checkout-dialog"><div class="dialog-inner"><button class="dialog-close" type="button">×</button><div class="eyebrow">HOMIKA CHECKOUT</div><h3 id="dialog-title">Homika Pro</h3><p id="dialog-copy" class="dialog-copy"></p><form id="checkout-form" class="checkout-form"><label>Email<input id="checkout-email" type="email" autocomplete="email" placeholder="nama@email.com" maxlength="254" required></label><button id="checkout-create" class="button primary" type="submit">Sediakan checkout</button></form><div id="dialog-summary" class="dialog-summary hidden"></div><div id="checkout-result" class="checkout-result hidden"></div><p id="gateway-note" class="form-note">Checkout foundation sudah aktif. Payment gateway sebenar akan disambungkan pada fasa seterusnya, jadi halaman ini belum akan mencaj bayaran.</p></div></dialog>
+<script src="./app.js" defer></script>
+</body></html>

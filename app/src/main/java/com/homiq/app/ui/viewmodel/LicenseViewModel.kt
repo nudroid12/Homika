@@ -3,6 +3,7 @@ package com.homiq.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.homiq.app.data.license.LicenseAccess
+import com.homiq.app.data.license.LicenseCheckoutResult
 import com.homiq.app.data.license.LicenseDeviceInfo
 import com.homiq.app.data.license.LicenseDevicesResult
 import com.homiq.app.data.license.LicenseRemoteDeviceDeactivateResult
@@ -23,6 +24,12 @@ data class LicenseDeviceUiState(
     val feedbackCode: String? = null,
 )
 
+data class LicenseCheckoutUiState(
+    val loading: Boolean = false,
+    val checkoutUrl: String? = null,
+    val errorCode: String? = null,
+)
+
 class LicenseViewModel(
     private val repository: LicenseRepository,
 ) : ViewModel() {
@@ -36,6 +43,9 @@ class LicenseViewModel(
         ),
     )
     val deviceState: StateFlow<LicenseDeviceUiState> = mutableDeviceState.asStateFlow()
+
+    private val mutableCheckoutState = MutableStateFlow(LicenseCheckoutUiState())
+    val checkoutState: StateFlow<LicenseCheckoutUiState> = mutableCheckoutState.asStateFlow()
 
     init {
         if (repository.shouldRefresh()) {
@@ -168,6 +178,29 @@ class LicenseViewModel(
                 }
             }
         }
+    }
+
+    fun prepareRenewalCheckout() {
+        if (mutableCheckoutState.value.loading) return
+        mutableCheckoutState.value = LicenseCheckoutUiState(loading = true)
+
+        viewModelScope.launch {
+            mutableCheckoutState.value = when (val result = repository.createRenewalCheckout()) {
+                is LicenseCheckoutResult.Success ->
+                    LicenseCheckoutUiState(checkoutUrl = result.checkoutUrl)
+                is LicenseCheckoutResult.Rejected ->
+                    LicenseCheckoutUiState(errorCode = result.code)
+                LicenseCheckoutResult.NetworkError ->
+                    LicenseCheckoutUiState(errorCode = "checkout_network")
+            }
+        }
+    }
+
+    fun consumeCheckoutUrl() {
+        mutableCheckoutState.value = mutableCheckoutState.value.copy(
+            checkoutUrl = null,
+            errorCode = null,
+        )
     }
 
     private fun refresh(forceBusy: Boolean = false) {

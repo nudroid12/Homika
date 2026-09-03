@@ -176,6 +176,37 @@ class LicenseApiClient(
         }
     }
 
+    suspend fun createRenewalCheckout(
+        activationToken: String,
+        deviceId: String,
+    ): LicenseCheckoutResult = withContext(Dispatchers.IO) {
+        val response = requestRaw(
+            method = "POST",
+            path = "/v1/store/renewal-intents",
+            payload = JSONObject().put("source", "android"),
+            headers = authenticatedHeaders(activationToken, deviceId),
+        )
+
+        when (response) {
+            RawResponse.NetworkError -> LicenseCheckoutResult.NetworkError
+            is RawResponse.Http -> {
+                val json = response.json
+                if (response.status in 200..299 && json?.optBoolean("ok", false) == true) {
+                    val checkoutUrl = json.optString("checkout_url").trim()
+                    if (checkoutUrl.startsWith("https://") || checkoutUrl.startsWith("http://")) {
+                        LicenseCheckoutResult.Success(checkoutUrl)
+                    } else {
+                        LicenseCheckoutResult.Rejected("invalid_checkout_url")
+                    }
+                } else if (response.status >= 500) {
+                    LicenseCheckoutResult.NetworkError
+                } else {
+                    LicenseCheckoutResult.Rejected(response.errorCode())
+                }
+            }
+        }
+    }
+
     private suspend fun postActivation(
         path: String,
         payload: JSONObject,
@@ -203,6 +234,7 @@ class LicenseApiClient(
                             planType = LicensePlanType.fromApi(
                                 activation.optString("plan_type", "annual"),
                             ),
+                            planKey = activation.optString("plan_key").trim().lowercase(),
                             expiresAt = expiresAt,
                             maxDevices = activation.optInt("max_devices", 3).coerceAtLeast(1),
                             activeDevices = activation.optInt("active_devices", 0).coerceAtLeast(0),

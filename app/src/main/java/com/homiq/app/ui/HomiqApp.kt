@@ -126,12 +126,16 @@ fun HomiqApp() {
     val licenseViewModel: LicenseViewModel = viewModel(factory = factory)
     val licenseState by licenseViewModel.state.collectAsStateWithLifecycle()
     val licenseDeviceState by licenseViewModel.deviceState.collectAsStateWithLifecycle()
+    val licenseCheckoutState by licenseViewModel.checkoutState.collectAsStateWithLifecycle()
     if (licenseState.access != LicenseAccess.ACTIVE) {
         LicenseActivationScreen(
             state = licenseState,
             onActivate = licenseViewModel::activate,
             onClaimTrial = licenseViewModel::claimTrial,
             onRetry = licenseViewModel::retry,
+            checkoutState = licenseCheckoutState,
+            onOpenRenewal = licenseViewModel::prepareRenewalCheckout,
+            onCheckoutConsumed = licenseViewModel::consumeCheckoutUrl,
         )
         return
     }
@@ -381,6 +385,9 @@ fun HomiqApp() {
                     onRefreshDevices = licenseViewModel::refreshDevices,
                     onDeactivateOtherDevice = licenseViewModel::deactivateOtherDevice,
                     onDeactivate = licenseViewModel::deactivate,
+                    checkoutState = licenseCheckoutState,
+                    onOpenRenewal = licenseViewModel::prepareRenewalCheckout,
+                    onCheckoutConsumed = licenseViewModel::consumeCheckoutUrl,
                     onBack = { goMain(HomiqDestination.More) },
                     modifier = Modifier.padding(innerPadding),
                 )

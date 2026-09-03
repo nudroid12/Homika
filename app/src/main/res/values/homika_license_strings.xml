@@ -129,4 +129,14 @@
 
     <string name="license_trial_error_endpoint_title">Trial service update required</string>
     <string name="license_trial_error_endpoint_body">The app reached Homika, but the trial endpoint is not available on the server yet. Update the Homika backend and try again.</string>
+
+    <string name="license_plan_1_month">1 Month</string>
+    <string name="license_plan_3_months">3 Months</string>
+    <string name="license_plan_6_months">6 Months</string>
+    <string name="license_plan_1_year">1 Year</string>
+    <string name="license_store_opening">Opening checkout…</string>
+    <string name="license_store_error_network">Could not open Homika checkout. Check your internet connection and try again.</string>
+    <string name="license_store_error_verify">Verify this licence online first, then open checkout again.</string>
+    <string name="license_store_error_generic">Homika checkout could not be prepared. Try again in a moment.</string>
+
 </resources>

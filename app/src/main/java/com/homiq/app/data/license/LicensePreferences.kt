@@ -37,6 +37,7 @@ class LicensePreferences(
             activationToken = token,
             licenseHint = json.optString("license_hint", "••••").ifBlank { "••••" },
             planType = LicensePlanType.fromApi(json.optString("plan_type", "annual")),
+            planKey = json.optString("plan_key").trim().lowercase(),
             expiresAt = expiresAt,
             expiresAtEpochMillis = expiryMillis,
             maxDevices = json.optInt("max_devices", 3).coerceAtLeast(1),
@@ -60,6 +61,7 @@ class LicensePreferences(
                 activationToken = activation.activationToken,
                 licenseHint = activation.licenseHint,
                 planType = activation.planType,
+                planKey = activation.planKey,
                 expiresAt = activation.expiresAt,
                 expiresAtEpochMillis = expiresAtEpochMillis,
                 maxDevices = activation.maxDevices,
@@ -107,6 +109,7 @@ class LicensePreferences(
             .put("activation_token", stored.activationToken)
             .put("license_hint", stored.licenseHint)
             .put("plan_type", stored.planType.apiValue)
+            .put("plan_key", stored.planKey)
             .put("expires_at", stored.expiresAt)
             .put("expires_at_millis", stored.expiresAtEpochMillis)
             .put("max_devices", stored.maxDevices)

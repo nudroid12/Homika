@@ -15,7 +15,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 12,
+          version: 13,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -27,6 +27,11 @@ export default {
           commercial_licensing_ux: true,
           purchase_redirect: true,
           store_catalog: true,
+          checkout_intents: true,
+          authenticated_renewal_checkout: true,
+          payment_webhook_foundation: true,
+          same_license_renewal: true,
+          exact_plan_key_in_token: true,
           self_service_trial: true,
           trial_days: 7,
           trial_max_devices: 1,
@@ -49,6 +54,26 @@ export default {
 
       if (request.method === "GET" && url.pathname === "/v1/store/catalog") {
         return storeCatalog(env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/store/checkout-intents") {
+        return createStoreCheckoutIntent(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/store/renewal-intents") {
+        return createAuthenticatedRenewalIntent(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/store/checkout") {
+        return getStoreCheckout(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/store/checkout/select-plan") {
+        return selectStoreCheckoutPlan(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/store/payment-webhook") {
+        return handleStorePaymentWebhook(request, env);
       }
 
       if (request.method === "POST" && url.pathname === "/v1/trials/claim") {
@@ -236,6 +261,388 @@ async function storeCatalog(env) {
     })),
   });
 }
+
+async function createStoreCheckoutIntent(request, env) {
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+
+  const action = cleanString(body.action, 20).toLowerCase();
+  const email = normalizeEmail(body.email);
+  const planKey = cleanString(body.plan_key, 40).toLowerCase();
+  if (!["buy", "renew"].includes(action)) return badRequest("invalid_checkout_action");
+  if (!email) return badRequest("invalid_email");
+
+  const plan = await getSalePlan(env, planKey);
+  if (!plan) return json({ ok: false, error: "plan_not_available" }, 404);
+
+  let licenseId = null;
+  if (action === "renew") {
+    const licenseKey = normalizeLicenseKey(body.license_key);
+    if (!licenseKey) return badRequest("license_key_required");
+    const license = await getLicenseByKey(env, licenseKey);
+    if (!license) return licenseError("license_not_found", 404);
+    if (license.status !== "active") return licenseError("license_inactive", 403, license);
+    licenseId = license.id;
+  }
+
+  const intent = await insertCheckoutIntent(env, { action, licenseId, email, plan });
+  return json({ ok: true, checkout: await checkoutIntentJson(env, intent) }, 201);
+}
+
+async function createAuthenticatedRenewalIntent(request, env) {
+  const auth = await authenticateLicenseIdentityRequest(request, env);
+  if (!auth.ok) return auth.response;
+
+  const intent = await insertCheckoutIntent(env, {
+    action: "renew",
+    licenseId: auth.license.id,
+    email: "",
+    plan: null,
+  });
+
+  return json({
+    ok: true,
+    checkout_url: checkoutUrlFor(request, env, intent.public_token),
+    checkout: await checkoutIntentJson(env, intent),
+  }, 201);
+}
+
+async function getStoreCheckout(request, env) {
+  const url = new URL(request.url);
+  const token = cleanString(url.searchParams.get("token"), 160);
+  if (!token) return badRequest("checkout_token_required");
+
+  let intent = await getCheckoutIntent(env, token);
+  if (!intent) return json({ ok: false, error: "checkout_not_found" }, 404);
+
+  if (["pending", "processing"].includes(intent.status) && checkoutHasExpired(intent)) {
+    await env.DB.prepare(
+      `UPDATE checkout_intents SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?1 AND status IN ('pending', 'processing')`
+    ).bind(intent.id).run();
+    intent = await getCheckoutIntent(env, token);
+  }
+
+  return json({ ok: true, checkout: await checkoutIntentJson(env, intent) });
+}
+
+async function selectStoreCheckoutPlan(request, env) {
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+
+  const token = cleanString(body.checkout_token, 160);
+  const planKey = cleanString(body.plan_key, 40).toLowerCase();
+  const email = normalizeEmail(body.email);
+  if (!token) return badRequest("checkout_token_required");
+  if (!email) return badRequest("invalid_email");
+
+  const plan = await getSalePlan(env, planKey);
+  if (!plan) return json({ ok: false, error: "plan_not_available" }, 404);
+
+  const intent = await getCheckoutIntent(env, token);
+  if (!intent) return json({ ok: false, error: "checkout_not_found" }, 404);
+  if (checkoutHasExpired(intent)) return json({ ok: false, error: "checkout_expired" }, 410);
+  if (intent.status !== "pending") return json({ ok: false, error: "checkout_not_editable" }, 409);
+
+  await env.DB.prepare(
+    `UPDATE checkout_intents
+        SET customer_email = ?1, plan_key = ?2, amount_cents = ?3,
+            currency = ?4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?5 AND status = 'pending'`
+  ).bind(email, plan.plan_key, Number(plan.price_cents), cleanString(plan.currency, 8) || "MYR", intent.id).run();
+
+  return json({ ok: true, checkout: await checkoutIntentJson(env, await getCheckoutIntent(env, token)) });
+}
+
+async function handleStorePaymentWebhook(request, env) {
+  const configuredSecret = cleanString(env.HOMIKA_PAYMENT_WEBHOOK_SECRET, 2000);
+  if (!configuredSecret) return json({ ok: false, error: "payment_webhook_not_configured" }, 503);
+
+  const suppliedSecret = cleanString(request.headers.get("x-homika-payment-secret"), 2000);
+  if (!suppliedSecret || suppliedSecret !== configuredSecret) return json({ ok: false, error: "unauthorized" }, 401);
+
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+
+  const token = cleanString(body.checkout_token, 160);
+  const provider = cleanString(body.provider, 60).toLowerCase() || "payment_gateway";
+  const providerPaymentId = cleanString(body.provider_payment_id, 160);
+  const paymentStatus = cleanString(body.status, 40).toLowerCase();
+  const amountCents = Number(body.amount_cents);
+  const currency = cleanString(body.currency, 8).toUpperCase() || "MYR";
+
+  if (!token) return badRequest("checkout_token_required");
+  if (!providerPaymentId) return badRequest("provider_payment_id_required");
+  if (!["paid", "success", "completed"].includes(paymentStatus)) {
+    return json({ ok: true, ignored: true, reason: "payment_not_completed" });
+  }
+  if (!Number.isSafeInteger(amountCents) || amountCents < 0) return badRequest("invalid_payment_amount");
+
+  const intent = await getCheckoutIntent(env, token);
+  if (!intent) return json({ ok: false, error: "checkout_not_found" }, 404);
+  if (!intent.plan_key || intent.amount_cents == null) return json({ ok: false, error: "checkout_plan_required" }, 409);
+  if (intent.status === "completed") return json({ ok: true, idempotent: true, checkout: await checkoutIntentJson(env, intent) });
+  if (!["pending", "processing"].includes(intent.status)) return json({ ok: false, error: "checkout_not_payable" }, 409);
+
+  if (amountCents !== Number(intent.amount_cents) || currency !== String(intent.currency || "MYR").toUpperCase()) {
+    return json({ ok: false, error: "payment_amount_mismatch" }, 409);
+  }
+
+  const completed = await completePaidCheckout(env, intent, provider, providerPaymentId);
+  return json({ ok: true, checkout: await checkoutIntentJson(env, completed) });
+}
+
+async function insertCheckoutIntent(env, { action, licenseId = null, email = "", plan = null }) {
+  const id = crypto.randomUUID();
+  const token = generateCheckoutToken();
+  const expiresAt = formatSqliteTimestamp(Date.now() + STORE_CHECKOUT_TTL_MS);
+  await env.DB.prepare(
+    `INSERT INTO checkout_intents (
+       id, public_token, product_id, action, license_id,
+       customer_email, plan_key, amount_cents, currency, status, expires_at
+     ) VALUES (?1, ?2, 'homika_pro', ?3, ?4, ?5, ?6, ?7, ?8, 'pending', ?9)`
+  ).bind(id, token, action, licenseId, email || null, plan?.plan_key || null,
+    plan ? Number(plan.price_cents) : null,
+    plan ? (cleanString(plan.currency, 8) || "MYR") : "MYR", expiresAt).run();
+  return getCheckoutIntent(env, token);
+}
+
+async function getCheckoutIntent(env, token) {
+  return env.DB.prepare(
+    `SELECT id, public_token, product_id, action, license_id,
+            customer_email, plan_key, amount_cents, currency, status,
+            provider, provider_reference, target_expires_at,
+            resulting_license_id, resulting_license_key,
+            created_at, updated_at, expires_at, paid_at, completed_at
+       FROM checkout_intents WHERE public_token = ?1 LIMIT 1`
+  ).bind(token).first();
+}
+
+async function checkoutIntentJson(env, intent) {
+  let licenseHint = "";
+  let entitlementExpiresAt = intent?.target_expires_at || null;
+  if (intent?.license_id) {
+    const license = await getLicenseById(env, intent.license_id);
+    if (license) {
+      licenseHint = maskLicenseKey(license.license_key);
+      if (intent.status === "completed") entitlementExpiresAt = license.expires_at;
+    }
+  }
+  return {
+    token: intent.public_token,
+    reference: `HMK-${String(intent.id).replace(/-/g, "").slice(0, 10).toUpperCase()}`,
+    action: intent.action,
+    status: intent.status,
+    plan_key: intent.plan_key,
+    amount_cents: intent.amount_cents == null ? null : Number(intent.amount_cents),
+    currency: cleanString(intent.currency, 8) || "MYR",
+    customer_email: intent.customer_email || null,
+    license_hint: licenseHint || null,
+    expires_at: intent.expires_at,
+    entitlement_expires_at: entitlementExpiresAt,
+    completed_at: intent.completed_at || null,
+    ...(intent.status === "completed" && intent.action === "buy" ? { license_key: intent.resulting_license_key || null } : {}),
+  };
+}
+
+async function getSalePlan(env, planKey) {
+  if (!planKey) return null;
+  return env.DB.prepare(
+    `SELECT plan_key, duration_unit, duration_value, max_devices, price_cents, currency
+       FROM license_plans
+      WHERE product_id = 'homika_pro' AND plan_key = ?1
+        AND sale_enabled = 1 AND price_cents IS NOT NULL LIMIT 1`
+  ).bind(planKey).first();
+}
+
+function checkoutHasExpired(intent) {
+  const expiry = parseSqliteTimestamp(intent?.expires_at);
+  return !expiry || expiry.getTime() <= Date.now();
+}
+
+function checkoutUrlFor(request, env, token) {
+  const configured = cleanString(env.HOMIKA_STORE_URL, 2000);
+  if (configured) {
+    try {
+      const url = new URL(configured);
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        url.searchParams.set("checkout", token);
+        url.searchParams.set("action", "renew");
+        return url.toString();
+      }
+    } catch (_) {}
+  }
+  const fallback = new URL("/buy/homika-pro", request.url);
+  fallback.searchParams.set("checkout", token);
+  fallback.searchParams.set("action", "renew");
+  return fallback.toString();
+}
+
+async function authenticateLicenseIdentityRequest(request, env) {
+  const authorization = cleanString(request.headers.get("authorization"), 7000);
+  const deviceId = cleanString(request.headers.get("x-homika-device-id"), 300);
+  if (!authorization.toLowerCase().startsWith("bearer ")) return { ok: false, response: json({ ok: false, error: "activation_token_required" }, 401) };
+  if (!deviceId) return { ok: false, response: json({ ok: false, error: "device_id_required" }, 400) };
+
+  const verified = await verifyActivationToken(authorization.slice(7).trim());
+  if (!verified.ok) return { ok: false, response: json({ ok: false, error: verified.error }, 403) };
+
+  const deviceHash = await sha256Hex(deviceId);
+  if (verified.claims.device_hash !== deviceHash) return { ok: false, response: json({ ok: false, error: "token_device_mismatch" }, 403) };
+
+  const license = await getLicenseById(env, verified.claims.license_id);
+  if (!license) return { ok: false, response: licenseError("license_not_found", 404) };
+  if (license.status !== "active") return { ok: false, response: licenseError("license_inactive", 403, license) };
+
+  const device = await env.DB.prepare(
+    `SELECT id, status FROM devices WHERE license_id = ?1 AND device_hash = ?2 LIMIT 1`
+  ).bind(license.id, deviceHash).first();
+  if (!device || device.status !== "active") return { ok: false, response: licenseError("device_not_activated", 403, license) };
+  return { ok: true, license, deviceHash };
+}
+
+async function completePaidCheckout(env, originalIntent, provider, providerPaymentId) {
+  let intent = await getCheckoutIntent(env, originalIntent.public_token);
+  if (!intent) throw new Error("checkout_not_found");
+  if (intent.status === "completed") return intent;
+  const plan = await getSalePlan(env, intent.plan_key);
+  if (!plan) throw new Error("plan_not_available");
+
+  let targetExpiresAt = intent.target_expires_at;
+  if (!targetExpiresAt) {
+    let baseMillis = Date.now();
+    if (intent.action === "renew") {
+      const license = await getLicenseById(env, intent.license_id);
+      if (!license) throw new Error("license_not_found");
+      const currentExpiry = parseSqliteTimestamp(license.expires_at);
+      if (currentExpiry && currentExpiry.getTime() > baseMillis) baseMillis = currentExpiry.getTime();
+    }
+    targetExpiresAt = formatSqliteTimestamp(addPlanDuration(baseMillis, plan));
+    await env.DB.prepare(
+      `UPDATE checkout_intents SET status = 'processing', target_expires_at = ?1,
+              provider = ?2, provider_reference = ?3,
+              paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?4 AND status IN ('pending', 'processing')`
+    ).bind(targetExpiresAt, provider, providerPaymentId, intent.id).run();
+    intent = await getCheckoutIntent(env, intent.public_token);
+  }
+
+  let license;
+  if (intent.action === "buy") {
+    let resultLicenseId = intent.resulting_license_id;
+    let resultLicenseKey = intent.resulting_license_key;
+    if (!resultLicenseId || !resultLicenseKey) {
+      resultLicenseId = resultLicenseId || crypto.randomUUID();
+      resultLicenseKey = resultLicenseKey || generatePaidLicenseKey();
+      await env.DB.prepare(
+        `UPDATE checkout_intents SET resulting_license_id = ?1, resulting_license_key = ?2,
+                updated_at = CURRENT_TIMESTAMP WHERE id = ?3`
+      ).bind(resultLicenseId, resultLicenseKey, intent.id).run();
+      intent = await getCheckoutIntent(env, intent.public_token);
+    }
+    license = await getLicenseById(env, resultLicenseId);
+    if (!license) {
+      const customerId = await findOrCreateCustomerByEmail(env, intent.customer_email);
+      await env.DB.prepare(
+        `INSERT INTO licenses (id, license_key, product_id, customer_id, status,
+          expires_at, max_devices, plan_type, plan_key)
+         VALUES (?1, ?2, 'homika_pro', ?3, 'active', ?4, ?5, ?6, ?7)`
+      ).bind(resultLicenseId, resultLicenseKey, customerId, targetExpiresAt,
+        Number(plan.max_devices || 3), paidPlanType(plan), plan.plan_key).run();
+      license = await getLicenseById(env, resultLicenseId);
+    }
+  } else {
+    license = await getLicenseById(env, intent.license_id);
+    if (!license) throw new Error("license_not_found");
+    let customerId = license.customer_id || null;
+    if (!customerId && intent.customer_email) customerId = await findOrCreateCustomerByEmail(env, intent.customer_email);
+    await env.DB.prepare(
+      `UPDATE licenses SET customer_id = COALESCE(customer_id, ?1), status = 'active',
+              expires_at = ?2, max_devices = ?3, plan_type = ?4, plan_key = ?5,
+              updated_at = CURRENT_TIMESTAMP WHERE id = ?6`
+    ).bind(customerId, targetExpiresAt, Number(plan.max_devices || 3), paidPlanType(plan), plan.plan_key, license.id).run();
+    license = await getLicenseById(env, license.id);
+  }
+
+  const existingPayment = await env.DB.prepare(
+    `SELECT id, amount_cents, currency FROM payments WHERE provider_payment_id = ?1 LIMIT 1`
+  ).bind(providerPaymentId).first();
+  if (!existingPayment) {
+    await env.DB.prepare(
+      `INSERT INTO payments (id, license_id, provider, provider_payment_id,
+       amount_cents, currency, status, plan_key, paid_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'paid', ?7, CURRENT_TIMESTAMP)`
+    ).bind(crypto.randomUUID(), license.id, provider, providerPaymentId,
+      Number(intent.amount_cents), cleanString(intent.currency, 8) || "MYR", intent.plan_key).run();
+  } else if (Number(existingPayment.amount_cents) !== Number(intent.amount_cents) ||
+             String(existingPayment.currency).toUpperCase() !== String(intent.currency).toUpperCase()) {
+    throw new Error("provider_payment_conflict");
+  }
+
+  await env.DB.prepare(
+    `UPDATE checkout_intents SET status = 'completed', provider = ?1, provider_reference = ?2,
+            resulting_license_id = ?3,
+            resulting_license_key = CASE WHEN action = 'buy' THEN COALESCE(resulting_license_key, ?4) ELSE resulting_license_key END,
+            completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?5`
+  ).bind(provider, providerPaymentId, license.id, license.license_key, intent.id).run();
+  return getCheckoutIntent(env, intent.public_token);
+}
+
+async function findOrCreateCustomerByEmail(env, email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) throw new Error("invalid_email");
+  const existing = await env.DB.prepare(
+    `SELECT id FROM customers WHERE lower(trim(email)) = lower(trim(?1)) ORDER BY created_at ASC LIMIT 1`
+  ).bind(normalized).first();
+  if (existing?.id) return existing.id;
+  const id = crypto.randomUUID();
+  await env.DB.prepare(`INSERT INTO customers (id, email) VALUES (?1, ?2)`).bind(id, normalized).run();
+  return id;
+}
+
+function paidPlanType(plan) {
+  return cleanString(plan.duration_unit, 20).toLowerCase() === "year" ? "annual" : "monthly";
+}
+
+function addPlanDuration(baseMillis, plan) {
+  const unit = cleanString(plan.duration_unit, 20).toLowerCase();
+  const value = Number(plan.duration_value || 0);
+  if (!Number.isInteger(value) || value <= 0) throw new Error("invalid_plan_duration");
+  if (unit === "day") return baseMillis + (value * 24 * 60 * 60 * 1000);
+  if (unit === "month") return addUtcMonths(baseMillis, value);
+  if (unit === "year") return addUtcMonths(baseMillis, value * 12);
+  throw new Error("unsupported_plan_duration");
+}
+
+function addUtcMonths(baseMillis, months) {
+  const source = new Date(baseMillis);
+  const day = source.getUTCDate();
+  const target = new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), 1,
+    source.getUTCHours(), source.getUTCMinutes(), source.getUTCSeconds(), source.getUTCMilliseconds()));
+  target.setUTCMonth(target.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(day, lastDay));
+  return target.getTime();
+}
+
+function generateCheckoutToken() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncodeBytes(bytes);
+}
+
+function generatePaidLicenseKey() {
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let token = "";
+  for (const byte of bytes) token += alphabet[byte % alphabet.length];
+  return `HMK-${token.slice(0, 4)}-${token.slice(4, 8)}-${token.slice(8, 12)}`;
+}
+
+const STORE_CHECKOUT_TTL_MS = 24 * 60 * 60 * 1000;
+
 
 async function claimTrial(request, env) {
   const body = await readJson(request);
@@ -821,6 +1228,7 @@ async function activationResponse(env, license, deviceHash, existingDevice) {
       activation_token: token,
       product_id: license.product_id,
       plan_type: normalizePlanType(license.plan_type),
+      plan_key: cleanString(license.plan_key, 40).toLowerCase(),
       status: "active",
       expires_at: license.expires_at,
       max_devices: Number(license.max_devices),
@@ -848,6 +1256,7 @@ async function createActivationToken(env, license, deviceHash) {
     iss: "app-license-api",
     product_id: license.product_id,
     plan_type: planType,
+    plan_key: cleanString(license.plan_key, 40).toLowerCase(),
     license_id: license.id,
     device_hash: deviceHash,
     license_hint: maskLicenseKey(license.license_key),
@@ -1720,7 +2129,7 @@ function syncConflictJson(incoming, current, reason) {
 
 async function getLicenseByKey(env, licenseKey) {
   return env.DB.prepare(
-    `SELECT id, license_key, product_id, customer_id, status, plan_type, expires_at, max_devices
+    `SELECT id, license_key, product_id, customer_id, status, plan_type, plan_key, expires_at, max_devices
        FROM licenses
       WHERE license_key = ?1
       LIMIT 1`
@@ -1729,7 +2138,7 @@ async function getLicenseByKey(env, licenseKey) {
 
 async function getLicenseById(env, licenseId) {
   return env.DB.prepare(
-    `SELECT id, license_key, product_id, customer_id, status, plan_type, expires_at, max_devices
+    `SELECT id, license_key, product_id, customer_id, status, plan_type, plan_key, expires_at, max_devices
        FROM licenses
       WHERE id = ?1
       LIMIT 1`
@@ -1893,7 +2302,7 @@ function corsHeaders() {
   return {
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type,authorization,x-homika-device-id,x-homika-backup-created-at,x-homika-record-count,x-homika-format-version,x-homika-database-schema-version",
+    "access-control-allow-headers": "content-type,authorization,x-homika-device-id,x-homika-backup-created-at,x-homika-record-count,x-homika-format-version,x-homika-database-schema-version,x-homika-payment-secret",
     "cache-control": "no-store",
   };
 }

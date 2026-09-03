@@ -48,10 +48,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.homiq.app.R
-import com.homiq.app.data.license.LicenseCommercialLinks
 import com.homiq.app.data.license.LicenseDeviceInfo
 import com.homiq.app.data.license.LicensePlanType
 import com.homiq.app.data.license.LicenseUiState
+import com.homiq.app.ui.viewmodel.LicenseCheckoutUiState
 import com.homiq.app.ui.viewmodel.LicenseDeviceUiState
 import java.text.DateFormat
 import java.time.LocalDateTime
@@ -72,6 +72,9 @@ fun LicenseManagementScreen(
     onRefreshDevices: () -> Unit,
     onDeactivateOtherDevice: (String) -> Unit,
     onDeactivate: () -> Unit,
+    checkoutState: LicenseCheckoutUiState,
+    onOpenRenewal: () -> Unit,
+    onCheckoutConsumed: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -80,10 +83,18 @@ fun LicenseManagementScreen(
     var verificationRequested by rememberSaveable { mutableStateOf(false) }
     var verificationFeedback by rememberSaveable { mutableStateOf<String?>(null) }
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     val daysRemaining = licenseDaysRemaining(state)
 
     LaunchedEffect(Unit) {
         onRefreshDevices()
+    }
+
+    LaunchedEffect(checkoutState.checkoutUrl) {
+        checkoutState.checkoutUrl?.let { url ->
+            runCatching { uriHandler.openUri(url) }
+            onCheckoutConsumed()
+        }
     }
 
     LaunchedEffect(
@@ -188,7 +199,7 @@ fun LicenseManagementScreen(
                 LicenseInfoRow(
                     icon = Icons.Outlined.VerifiedUser,
                     label = stringResource(R.string.license_plan),
-                    value = licensePlanLabel(state.planType),
+                    value = licensePlanLabel(state.planType, state.planKey),
                 )
                 LicenseDivider()
                 LicenseInfoRow(
@@ -197,7 +208,9 @@ fun LicenseManagementScreen(
                     value = if (state.planType == LicensePlanType.LIFETIME) {
                         stringResource(R.string.license_plan_lifetime)
                     } else {
-                        state.expiresAt ?: stringResource(R.string.license_unknown)
+                        state.expiresAt
+                            ?.let { formatServerDateTime(context, it) }
+                            ?: stringResource(R.string.license_unknown)
                     },
                 )
                 if (state.planType != LicensePlanType.LIFETIME) {
@@ -231,9 +244,9 @@ fun LicenseManagementScreen(
             RenewalCard(
                 planType = state.planType,
                 daysRemaining = daysRemaining,
-                onRenew = {
-                    runCatching { uriHandler.openUri(LicenseCommercialLinks.RENEW_URL) }
-                },
+                openingCheckout = checkoutState.loading,
+                checkoutErrorCode = checkoutState.errorCode,
+                onRenew = onOpenRenewal,
             )
         }
 
@@ -377,6 +390,8 @@ fun LicenseManagementScreen(
 private fun RenewalCard(
     planType: LicensePlanType,
     daysRemaining: Long?,
+    openingCheckout: Boolean,
+    checkoutErrorCode: String?,
     onRenew: () -> Unit,
 ) {
     val urgent = daysRemaining != null && daysRemaining <= 30L
@@ -415,13 +430,30 @@ private fun RenewalCard(
             OutlinedButton(
                 onClick = onRenew,
                 modifier = Modifier.fillMaxWidth(),
+                enabled = !openingCheckout,
             ) {
+                if (openingCheckout) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.license_store_opening))
+                } else {
+                    Text(
+                        if (trial) {
+                            stringResource(R.string.license_upgrade_online)
+                        } else {
+                            stringResource(R.string.license_renew_online)
+                        },
+                    )
+                }
+            }
+            checkoutErrorCode?.let {
                 Text(
-                    if (trial) {
-                        stringResource(R.string.license_upgrade_online)
-                    } else {
-                        stringResource(R.string.license_renew_online)
-                    },
+                    text = checkoutErrorText(it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
                 )
             }
         }
@@ -616,12 +648,32 @@ private fun deviceErrorText(code: String): String =
     }
 
 @Composable
-private fun licensePlanLabel(planType: LicensePlanType): String =
-    when (planType) {
-        LicensePlanType.TRIAL -> stringResource(R.string.license_plan_trial)
-        LicensePlanType.MONTHLY -> stringResource(R.string.license_plan_monthly)
-        LicensePlanType.ANNUAL -> stringResource(R.string.license_plan_annual)
-        LicensePlanType.LIFETIME -> stringResource(R.string.license_plan_lifetime)
+private fun checkoutErrorText(code: String): String =
+    when (code) {
+        "checkout_network" -> stringResource(R.string.license_store_error_network)
+        "license_required", "invalid_activation_token", "token_device_mismatch" ->
+            stringResource(R.string.license_store_error_verify)
+        else -> stringResource(R.string.license_store_error_generic)
+    }
+
+@Composable
+private fun licensePlanLabel(
+    planType: LicensePlanType,
+    planKey: String,
+): String =
+    when (planKey.trim().lowercase()) {
+        "trial_7d" -> stringResource(R.string.license_plan_trial)
+        "1_month" -> stringResource(R.string.license_plan_1_month)
+        "3_month" -> stringResource(R.string.license_plan_3_months)
+        "6_month" -> stringResource(R.string.license_plan_6_months)
+        "1_year" -> stringResource(R.string.license_plan_1_year)
+        "lifetime" -> stringResource(R.string.license_plan_lifetime)
+        else -> when (planType) {
+            LicensePlanType.TRIAL -> stringResource(R.string.license_plan_trial)
+            LicensePlanType.MONTHLY -> stringResource(R.string.license_plan_monthly)
+            LicensePlanType.ANNUAL -> stringResource(R.string.license_plan_annual)
+            LicensePlanType.LIFETIME -> stringResource(R.string.license_plan_lifetime)
+        }
     }
 
 @Composable

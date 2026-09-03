@@ -61,6 +61,7 @@ object ActivationTokenVerifier {
         }
 
         val planType = LicensePlanType.fromApi(claims.optString("plan_type", "annual"))
+        val planKey = claims.optString("plan_key").trim().lowercase()
         val tokenExpirySeconds = claims.optLong("exp", 0L)
         val licenseExpirySeconds = claims.optLong("license_exp", 0L)
         if (tokenExpirySeconds <= 0L || licenseExpirySeconds <= 0L) return null
@@ -78,6 +79,7 @@ object ActivationTokenVerifier {
         return VerifiedActivationToken(
             licenseId = licenseId,
             planType = planType,
+            planKey = planKey,
             expiresAtEpochMillis = licenseExpiryMillis,
             licenseHint = claims.optString("license_hint", "••••").ifBlank { "••••" },
             maxDevices = claims.optInt("max_devices", 3).coerceAtLeast(1),

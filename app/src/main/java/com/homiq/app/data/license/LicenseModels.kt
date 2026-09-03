@@ -28,6 +28,7 @@ data class LicenseUiState(
     val licenseKey: String = "",
     val licenseHint: String = "",
     val planType: LicensePlanType = LicensePlanType.ANNUAL,
+    val planKey: String = "",
     val expiresAt: String? = null,
     val expiresAtEpochMillis: Long = 0L,
     val maxDevices: Int = 3,
@@ -42,6 +43,7 @@ data class StoredLicense(
     val activationToken: String,
     val licenseHint: String,
     val planType: LicensePlanType,
+    val planKey: String,
     val expiresAt: String,
     val expiresAtEpochMillis: Long,
     val maxDevices: Int,
@@ -54,6 +56,7 @@ data class LicenseActivation(
     val activationToken: String,
     val licenseHint: String,
     val planType: LicensePlanType,
+    val planKey: String,
     val expiresAt: String,
     val maxDevices: Int,
     val activeDevices: Int,
@@ -127,7 +130,21 @@ sealed interface LicenseRemoteDeviceDeactivateResult {
 data class VerifiedActivationToken(
     val licenseId: String,
     val planType: LicensePlanType,
+    val planKey: String,
     val expiresAtEpochMillis: Long,
     val licenseHint: String,
     val maxDevices: Int,
 )
+
+
+sealed interface LicenseCheckoutResult {
+    data class Success(
+        val checkoutUrl: String,
+    ) : LicenseCheckoutResult
+
+    data class Rejected(
+        val code: String,
+    ) : LicenseCheckoutResult
+
+    data object NetworkError : LicenseCheckoutResult
+}

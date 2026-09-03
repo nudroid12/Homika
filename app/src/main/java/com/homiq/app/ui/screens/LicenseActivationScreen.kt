@@ -44,6 +44,7 @@ import com.homiq.app.data.license.LicenseAccess
 import com.homiq.app.data.license.LicenseCommercialLinks
 import com.homiq.app.data.license.LicenseUiState
 import com.homiq.app.ui.components.HomikaBrandMark
+import com.homiq.app.ui.viewmodel.LicenseCheckoutUiState
 import com.homiq.app.ui.theme.HomikaInk
 import com.homiq.app.ui.theme.HomikaMintSoft
 import com.homiq.app.ui.theme.HomikaOutline
@@ -57,6 +58,9 @@ fun LicenseActivationScreen(
     onActivate: (String) -> Unit,
     onClaimTrial: (String) -> Unit,
     onRetry: () -> Unit,
+    checkoutState: LicenseCheckoutUiState,
+    onOpenRenewal: () -> Unit,
+    onCheckoutConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var licenseKey by rememberSaveable { mutableStateOf(state.licenseKey) }
@@ -66,6 +70,13 @@ fun LicenseActivationScreen(
     LaunchedEffect(state.licenseKey) {
         if (state.licenseKey.isNotBlank() && licenseKey.isBlank()) {
             licenseKey = state.licenseKey
+        }
+    }
+
+    LaunchedEffect(checkoutState.checkoutUrl) {
+        checkoutState.checkoutUrl?.let { url ->
+            runCatching { uriHandler.openUri(url) }
+            onCheckoutConsumed()
         }
     }
 
@@ -181,12 +192,29 @@ fun LicenseActivationScreen(
                 }
 
                 Button(
-                    onClick = {
-                        runCatching { uriHandler.openUri(LicenseCommercialLinks.RENEW_URL) }
-                    },
+                    onClick = onOpenRenewal,
                     modifier = Modifier.fillMaxWidth(),
+                    enabled = !state.busy && !checkoutState.loading,
                 ) {
-                    Text(stringResource(R.string.license_renew_online))
+                    if (checkoutState.loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.license_store_opening))
+                    } else {
+                        Text(stringResource(R.string.license_renew_online))
+                    }
+                }
+
+                checkoutState.errorCode?.let {
+                    Text(
+                        text = checkoutErrorText(it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
 
                 OutlinedButton(
@@ -324,6 +352,15 @@ fun LicenseActivationScreen(
         }
     }
         }
+    }
+
+@Composable
+private fun checkoutErrorText(code: String): String =
+    when (code) {
+        "checkout_network" -> stringResource(R.string.license_store_error_network)
+        "license_required", "invalid_activation_token", "token_device_mismatch" ->
+            stringResource(R.string.license_store_error_verify)
+        else -> stringResource(R.string.license_store_error_generic)
     }
 
 @Composable

@@ -129,4 +129,14 @@
 
     <string name="license_trial_error_endpoint_title">Kemas kini servis percubaan diperlukan</string>
     <string name="license_trial_error_endpoint_body">Aplikasi berjaya menghubungi Homika, tetapi servis percubaan belum tersedia pada server. Kemas kini backend Homika dan cuba lagi.</string>
+
+    <string name="license_plan_1_month">1 Bulan</string>
+    <string name="license_plan_3_months">3 Bulan</string>
+    <string name="license_plan_6_months">6 Bulan</string>
+    <string name="license_plan_1_year">1 Tahun</string>
+    <string name="license_store_opening">Membuka checkout…</string>
+    <string name="license_store_error_network">Checkout Homika tidak dapat dibuka. Semak sambungan internet dan cuba lagi.</string>
+    <string name="license_store_error_verify">Sahkan lesen ini secara online dahulu, kemudian buka checkout semula.</string>
+    <string name="license_store_error_generic">Checkout Homika tidak dapat disediakan. Cuba lagi sebentar lagi.</string>
+
 </resources>
