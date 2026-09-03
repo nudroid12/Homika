@@ -87,3 +87,28 @@ dialog::backdrop { background: rgba(18, 24, 19, .58); backdrop-filter: blur(3px)
 .checkout-result { margin-top: 14px; padding: 16px; border-radius: 15px; background: var(--soft); line-height: 1.55; }
 .checkout-result p { margin: 8px 0; color: var(--muted); }
 .checkout-result code { display: block; padding: 12px; border-radius: 10px; background: #fff; border: 1px solid var(--line); font-size: 16px; font-weight: 900; overflow-wrap: anywhere; }
+
+.payment-panel { margin-top: 18px; border: 1px solid var(--line); border-radius: 18px; padding: 18px; background: rgba(255,255,255,.6); }
+.payment-head { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; }
+.payment-name { margin-top: 6px; font-weight: 800; }
+.payment-total { text-align: right; }
+.payment-total span { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+.payment-total strong { display: block; font-size: 28px; }
+.payment-qr { width: min(310px, 100%); aspect-ratio: 1; object-fit: contain; display: block; margin: 18px auto; border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 10px; }
+.payment-ref { padding: 12px; border-radius: 12px; background: var(--soft); text-align: center; font-size: 13px; }
+.payment-status { margin: 14px 0; line-height: 1.5; }
+.payment-status p { margin: 5px 0 0; color: var(--muted); }
+.proof-form { display: grid; gap: 13px; margin-top: 16px; }
+.optional { color: var(--muted); font-weight: 600; }
+input[type="file"] { padding: 11px 12px; min-height: 48px; }
+
+.manual-approval-notice { margin: 16px 0; padding: 14px 15px; border-radius: 14px; background: #fff5dc; border: 1px solid #ead3a3; line-height: 1.5; }
+.manual-approval-notice strong { display: block; }
+.manual-approval-notice p { margin: 5px 0 0; color: #655735; font-size: 13px; }
+.payment-qr-frame { width: min(350px, 100%); aspect-ratio: 1; overflow: hidden; display: block; margin: 18px auto 12px; border-radius: 18px; background: #fff; border: 1px solid var(--line); position: relative; }
+.payment-qr-frame .payment-qr { width: 172%; max-width: none; height: auto; position: absolute; left: -36%; top: -96%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.qr-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 10px; }
+.same-phone-tip { margin: 8px 0 14px; padding: 12px 13px; border-radius: 12px; background: var(--soft); color: var(--muted); font-size: 12px; line-height: 1.55; }
+.same-phone-tip strong { color: var(--ink); }
+.status-link-button { width: 100%; margin-top: 8px; border: 0; background: transparent; color: var(--primary); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; text-decoration: underline; }
+@media (max-width: 420px) { .qr-actions { grid-template-columns: 1fr; } }

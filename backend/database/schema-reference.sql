@@ -277,3 +277,25 @@ ON checkout_intents(license_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_checkout_intents_provider_reference
 ON checkout_intents(provider, provider_reference);
+
+CREATE TABLE IF NOT EXISTS manual_payment_submissions (
+    id TEXT PRIMARY KEY,
+    checkout_id TEXT NOT NULL UNIQUE,
+    payer_name TEXT NOT NULL,
+    payment_reference TEXT,
+    proof_object_key TEXT NOT NULL,
+    proof_content_type TEXT NOT NULL,
+    proof_size INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'submitted',
+    admin_note TEXT,
+    submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (checkout_id) REFERENCES checkout_intents(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_manual_payment_status
+ON manual_payment_submissions(status, submitted_at);
+
+CREATE INDEX IF NOT EXISTS idx_manual_payment_checkout
+ON manual_payment_submissions(checkout_id);

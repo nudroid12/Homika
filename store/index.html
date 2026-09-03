@@ -12,9 +12,51 @@
 <section class="hero section"><div class="eyebrow">HARGA PELANCARAN</div><h1>Homika Pro, satu lesen untuk sehingga 3 peranti.</h1><p class="hero-copy">Semua pelan berbayar membuka fungsi Pro yang sama termasuk Homika Cloud Sync dan encrypted Cloud Backup.</p><div class="hero-actions"><a class="button primary" href="#pricing">Pilih pelan</a><a class="button secondary" href="#trial">Cuba 7 hari percuma</a></div><div class="trust-row"><span>3 peranti</span><span>Cloud Sync</span><span>Cloud Backup</span><span>Data lokal kekal</span></div></section>
 <section class="section" id="pricing"><div class="section-heading"><div><div class="eyebrow">PILIH TEMPOH</div><h2>Fungsi sama. Pilih tempoh yang sesuai.</h2></div><p>Renew awal tidak membuang baki tempoh. Tempoh baharu ditambah selepas tarikh tamat semasa.</p></div><div id="catalog-status" class="catalog-status">Memuatkan harga terkini…</div><div id="plans" class="plans"></div></section>
 <section class="section trial" id="trial"><div class="trial-card"><div><div class="eyebrow">CUBA DULU</div><h2>Trial percuma 7 hari.</h2><p>Tak perlu kad. Semua fungsi Pro dibuka pada 1 peranti. Setiap peranti dan email hanya boleh claim trial sekali.</p></div><div class="trial-steps"><span>1. Buka Homika Pro</span><span>2. Masukkan email</span><span>3. Tekan “Mulakan trial percuma 7 hari”</span></div></div></section>
-<section class="section renew" id="renew"><div class="renew-card"><div><div class="eyebrow">SUDAH ADA LESEN?</div><h2>Renew kod lesen yang sama.</h2><p>Masukkan lesen sedia ada jika membuka laman ini secara manual. Jika dibuka terus dari aplikasi Homika, lesen dipaut automatik.</p></div><form id="renew-form" class="renew-form"><label>Email<input id="renew-email" type="email" autocomplete="email" placeholder="nama@email.com" maxlength="254" required></label><label>Kod lesen<input id="renew-license" type="text" autocomplete="off" placeholder="HMK-XXXX-XXXX-XXXX" maxlength="80" required></label><label>Tempoh renewal<select id="renew-plan"></select></label><button class="button primary" type="submit">Sediakan renewal</button><p class="form-note">Tiada bayaran dicaj sehingga payment gateway rasmi disambungkan.</p></form></div></section>
+<section class="section renew" id="renew"><div class="renew-card"><div><div class="eyebrow">SUDAH ADA LESEN?</div><h2>Renew kod lesen yang sama.</h2><p>Masukkan lesen sedia ada jika membuka laman ini secara manual. Jika dibuka terus dari aplikasi Homika, lesen dipaut automatik.</p></div><form id="renew-form" class="renew-form"><label>Email<input id="renew-email" type="email" autocomplete="email" placeholder="nama@email.com" maxlength="254" required></label><label>Kod lesen<input id="renew-license" type="text" autocomplete="off" placeholder="HMK-XXXX-XXXX-XXXX" maxlength="80" required></label><label>Tempoh renewal<select id="renew-plan"></select></label><button class="button primary" type="submit">Sediakan renewal</button><p class="form-note">Pembayaran dibuat melalui QR dan disahkan secara manual. Kebiasaannya dalam beberapa jam, tetapi bayaran di luar waktu semakan mungkin disahkan pada hari berikutnya.</p></form></div></section>
 </main>
 <footer><span>Homika Pro</span><span>Local-first · Cloud-enabled</span></footer>
-<dialog id="checkout-dialog"><div class="dialog-inner"><button class="dialog-close" type="button">×</button><div class="eyebrow">HOMIKA CHECKOUT</div><h3 id="dialog-title">Homika Pro</h3><p id="dialog-copy" class="dialog-copy"></p><form id="checkout-form" class="checkout-form"><label>Email<input id="checkout-email" type="email" autocomplete="email" placeholder="nama@email.com" maxlength="254" required></label><button id="checkout-create" class="button primary" type="submit">Sediakan checkout</button></form><div id="dialog-summary" class="dialog-summary hidden"></div><div id="checkout-result" class="checkout-result hidden"></div><p id="gateway-note" class="form-note">Checkout foundation sudah aktif. Payment gateway sebenar akan disambungkan pada fasa seterusnya, jadi halaman ini belum akan mencaj bayaran.</p></div></dialog>
+
+<dialog id="checkout-dialog">
+  <div class="dialog-inner">
+    <button class="dialog-close" type="button" aria-label="Tutup">×</button>
+    <div class="eyebrow">HOMIKA CHECKOUT</div>
+    <h3 id="dialog-title">Homika Pro</h3>
+    <p id="dialog-copy" class="dialog-copy"></p>
+    <form id="checkout-form" class="checkout-form">
+      <label>Email<input id="checkout-email" type="email" autocomplete="email" placeholder="nama@email.com" maxlength="254" required></label>
+      <button id="checkout-create" class="button primary" type="submit">Teruskan ke pembayaran QR</button>
+    </form>
+    <div id="dialog-summary" class="dialog-summary hidden"></div>
+    <div id="checkout-result" class="checkout-result hidden"></div>
+
+    <section id="payment-panel" class="payment-panel hidden">
+      <div class="payment-head">
+        <div><div class="eyebrow">BAYAR MELALUI QR</div><div id="payment-name" class="payment-name"></div></div>
+        <div class="payment-total"><span>Jumlah</span><strong id="payment-amount">RM0</strong></div>
+      </div>
+      <div class="manual-approval-notice">
+        <strong>Pengesahan bayaran dibuat secara manual</strong>
+        <p>Kebiasaannya diproses dalam beberapa jam. Jika bayaran dibuat ketika admin tidak tersedia, pengesahan mungkin dibuat pada hari berikutnya. Jangan buat bayaran kali kedua.</p>
+      </div>
+      <div id="payment-qr-frame" class="payment-qr-frame hidden"><img id="payment-qr" class="payment-qr" alt="QR pembayaran Homika Pro"></div>
+      <div id="qr-actions" class="qr-actions hidden">
+        <a id="open-qr" class="button secondary" target="_blank" rel="noopener">Buka QR penuh</a>
+        <a id="save-qr" class="button secondary" download="Homika-Payment-QR.jpg">Simpan QR</a>
+      </div>
+      <p id="same-phone-tip" class="same-phone-tip hidden"><strong>Bayar guna telefon yang sama?</strong> Simpan QR ini, kemudian buka app bank/eWallet dan pilih fungsi scan/import QR daripada Gallery jika app anda menyokongnya.</p>
+      <div class="payment-ref">Rujukan order: <strong id="payment-reference"></strong></div>
+      <button id="copy-status-link" class="status-link-button" type="button">Salin link semakan bayaran</button>
+      <div id="payment-status" class="payment-status"></div>
+      <form id="proof-form" class="proof-form hidden">
+        <label>Screenshot bukti pembayaran<input id="proof-file" type="file" accept="image/jpeg,image/png,image/webp" required></label>
+        <label>Nama pembayar <span class="optional">(optional)</span><input id="payer-name" type="text" maxlength="120" placeholder="Jika nama akaun berbeza"></label>
+        <label>Transaction ID / reference <span class="optional">(optional)</span><input id="transaction-ref" type="text" maxlength="160" placeholder="Jika ada pada resit"></label>
+        <p class="form-note">Cukup upload screenshot resit. JPG, PNG atau WebP, maksimum 2 MB.</p>
+        <button id="proof-submit" class="button primary" type="submit">Saya dah bayar, hantar bukti</button>
+      </form>
+    </section>
+  </div>
+</dialog>
 <script src="./app.js" defer></script>
-</body></html>
+</body>
+</html>

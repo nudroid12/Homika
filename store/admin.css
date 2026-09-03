@@ -1,0 +1,24 @@
+.admin-body { min-height: 100vh; }
+.admin-main { max-width: 1050px; margin: 0 auto; padding: 50px 20px 80px; }
+.card-shell { max-width: 560px; margin: 8vh auto 0; padding: 30px; border: 1px solid var(--line); border-radius: 24px; background: var(--card); box-shadow: var(--shadow); }
+.card-shell h1 { font-size: clamp(36px,6vw,60px); margin-bottom: 14px; }
+.card-shell p { color: var(--muted); line-height: 1.6; }
+.admin-title { display: flex; gap: 24px; align-items: end; justify-content: space-between; margin-bottom: 22px; }
+.admin-controls { display: flex; gap: 10px; align-items: center; }
+.admin-controls select { min-width: 190px; }
+.admin-list { display: grid; gap: 15px; }
+.admin-payment { border: 1px solid var(--line); border-radius: 22px; background: var(--card); padding: 20px; box-shadow: var(--shadow); }
+.admin-payment-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.admin-reference { font-size: 18px; font-weight: 900; }
+.admin-amount { font-size: 28px; font-weight: 900; white-space: nowrap; }
+.admin-meta { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px 20px; margin: 16px 0; color: var(--muted); font-size: 13px; }
+.admin-meta strong { color: var(--ink); }
+.admin-proof { width: min(420px,100%); max-height: 520px; object-fit: contain; display: block; margin: 14px auto; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
+.admin-actions { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; margin-top: 14px; }
+.admin-actions input { min-width: 0; }
+.button.danger { background: #8a2e2e; color: #fff; }
+.status-pill { display: inline-flex; padding: 6px 10px; border-radius: 999px; background: var(--soft); font-size: 12px; font-weight: 900; }
+.admin-error { margin-top: 12px; color: #8a2e2e; font-weight: 700; }
+.empty-state { padding: 36px; text-align: center; border: 1px dashed var(--line); border-radius: 20px; color: var(--muted); }
+@media (max-width:700px){.admin-title,.admin-payment-head{align-items:stretch;flex-direction:column}.admin-controls{align-items:stretch;flex-direction:column}.admin-actions{grid-template-columns:1fr}.admin-meta{grid-template-columns:1fr}.admin-amount{font-size:24px}}
+.admin-auto-note { margin: -10px 0 18px; color: var(--muted); font-size: 12px; }

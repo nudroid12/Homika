@@ -1,13 +1,17 @@
-# Homika Pro Store - Patch 13B
+# Homika Pro Store
 
-Static Cloudflare Pages frontend for the Homika Pro catalogue and checkout-intent flow.
+Static Cloudflare Pages storefront for Homika Pro.
 
-Required before public use:
-1. Deploy this `store/` directory to Cloudflare Pages.
-2. Set Worker environment variable `HOMIKA_STORE_URL` to the Pages HTTPS URL.
-3. Apply D1 migration `0008-commerce-checkout-foundation.sql`.
-4. Deploy Worker v13.
+Patch 13C Final uses QR payment with manual admin approval.
 
-Patch 13B does NOT charge customers yet. It creates secure checkout intents and the same-licence renewal path.
-The generic `/v1/store/payment-webhook` completion endpoint is included for the next payment-gateway patch.
-Do not set or expose `HOMIKA_PAYMENT_WEBHOOK_SECRET` in this static site.
+- Customer store: `/`
+- Admin dashboard: `/admin.html`
+- Store API: `https://app-license-api.nudroids.workers.dev`
+- Real payment QR: `payment-qr.jpg`
+- Worker normally resolves the bundled QR from `HOMIKA_STORE_URL`.
+- `HOMIKA_PAYMENT_QR_URL` is optional and only overrides the bundled QR.
+- Admin access requires Worker secret `HOMIKA_ADMIN_SECRET`.
+- Payment proof is uploaded to the Worker and stored privately in existing R2 `BACKUPS` binding.
+- Optional Telegram push requires Worker secrets `HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN` and `HOMIKA_ADMIN_TELEGRAM_CHAT_ID`.
+
+No API key, admin secret or Telegram secret belongs in this Pages directory.

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive"><meta name="theme-color" content="#0b1f1a">
+  <title>Homika Payment Admin</title>
+  <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./admin.css">
+</head>
+<body class="admin-body">
+<header class="nav-shell"><nav class="nav"><a class="brand" href="./"><span class="brand-mark">H</span><span>Homika Admin</span></a><button id="logout" class="button secondary hidden" type="button">Log keluar</button></nav></header>
+<main class="admin-main">
+  <section id="login-panel" class="admin-login card-shell">
+    <div class="eyebrow">PAYMENT ADMIN</div><h1>Semak bayaran QR.</h1>
+    <p>Masukkan Admin Secret. Secret hanya disimpan dalam session browser ini.</p>
+    <form id="login-form" class="renew-form"><label>Admin Secret<input id="admin-secret" type="password" autocomplete="off" required></label><button class="button primary" type="submit">Buka dashboard</button></form>
+    <div id="login-error" class="admin-error"></div>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="admin-title"><div><div class="eyebrow">HOMIKA PRO</div><h2>Payment Approval</h2></div><div class="admin-controls"><select id="status-filter"><option value="submitted">Menunggu semakan</option><option value="approved">Diluluskan</option><option value="rejected">Ditolak</option><option value="all">Semua</option></select><button id="refresh" class="button secondary" type="button">Refresh</button></div></div>
+    <div id="admin-status" class="catalog-status"></div><p class="admin-auto-note">Dashboard auto refresh setiap 30 saat semasa tab dibuka.</p>
+    <div id="payment-list" class="admin-list"></div>
+  </section>
+</main>
+<script src="./admin.js" defer></script>
+</body>
+</html>

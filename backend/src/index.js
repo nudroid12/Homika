@@ -3,7 +3,7 @@ const TOKEN_HEADER = { alg: "RS256", typ: "HAT", v: 1 };
 const TOKEN_LIFETIME_SECONDS = 5 * 365 * 24 * 60 * 60;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     try {
       const url = new URL(request.url);
 
@@ -15,7 +15,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 13,
+          version: 14,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -30,6 +30,10 @@ export default {
           checkout_intents: true,
           authenticated_renewal_checkout: true,
           payment_webhook_foundation: true,
+          manual_qr_payment: true,
+          manual_payment_proof: true,
+          admin_payment_approval: true,
+          admin_payment_notification: Boolean(cleanString(env.HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN, 300) && cleanString(env.HOMIKA_ADMIN_TELEGRAM_CHAT_ID, 120)),
           same_license_renewal: true,
           exact_plan_key_in_token: true,
           self_service_trial: true,
@@ -74,6 +78,22 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/v1/store/payment-webhook") {
         return handleStorePaymentWebhook(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/store/manual-payment/submit") {
+        return submitManualPayment(request, env, ctx);
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/admin/payments") {
+        return listManualPayments(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/admin/payments/proof") {
+        return getManualPaymentProof(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/admin/payments/review") {
+        return reviewManualPayment(request, env);
       }
 
       if (request.method === "POST" && url.pathname === "/v1/trials/claim") {
@@ -236,6 +256,7 @@ async function storeCatalog(env) {
       cloud_backup: true,
     },
     launch_promotion: true,
+    manual_payment: publicManualPaymentConfig(env),
     trial: trial ? {
       plan_key: trial.plan_key,
       name: trial.name,
@@ -392,6 +413,328 @@ async function handleStorePaymentWebhook(request, env) {
   return json({ ok: true, checkout: await checkoutIntentJson(env, completed) });
 }
 
+function publicManualPaymentConfig(env) {
+  const configuredQrUrl = cleanString(env.HOMIKA_PAYMENT_QR_URL, 2000);
+  const displayName = cleanString(env.HOMIKA_PAYMENT_DISPLAY_NAME, 120);
+  let safeQrUrl = safeHttpsUrl(configuredQrUrl);
+  if (!safeQrUrl) safeQrUrl = storeAssetUrl(env, "payment-qr.jpg");
+  return {
+    enabled: Boolean(safeQrUrl),
+    method: "qr_manual_approval",
+    qr_url: safeQrUrl || null,
+    display_name: displayName || "Touch n Go eWallet / DuitNow QR",
+    proof_required: true,
+    max_proof_bytes: MANUAL_PAYMENT_MAX_PROOF_BYTES,
+    manual_review: true,
+  };
+}
+
+function safeHttpsUrl(value) {
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" ? parsed.toString() : "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function storeAssetUrl(env, filename) {
+  const storeUrl = cleanString(env.HOMIKA_STORE_URL, 2000);
+  if (!storeUrl) return "";
+  try {
+    const base = new URL(storeUrl);
+    if (base.protocol !== "https:") return "";
+    if (!base.pathname.endsWith("/")) base.pathname += "/";
+    base.search = "";
+    base.hash = "";
+    return new URL(filename, base).toString();
+  } catch (_) {
+    return "";
+  }
+}
+
+function adminDashboardUrl(env) {
+  return storeAssetUrl(env, "admin.html");
+}
+
+async function notifyAdminManualPayment(env, intent, submissionId, paymentReference) {
+  const botToken = cleanString(env.HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN, 300);
+  const chatId = cleanString(env.HOMIKA_ADMIN_TELEGRAM_CHAT_ID, 120);
+  if (!botToken || !chatId) return;
+
+  const planNames = {
+    "1_month": "1 Bulan",
+    "3_month": "3 Bulan",
+    "6_month": "6 Bulan",
+    "1_year": "1 Tahun",
+  };
+  const amount = `RM${(Number(intent.amount_cents || 0) / 100).toFixed(0)}`;
+  const orderRef = `HMK-${String(intent.id).replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+  const dashboard = adminDashboardUrl(env);
+  const lines = [
+    "🔔 Homika: bayaran menunggu semakan",
+    `${amount} · ${planNames[intent.plan_key] || intent.plan_key || "Pelan"}`,
+    `Order: ${orderRef}`,
+    `Jenis: ${intent.action === "renew" ? "Renew / Upgrade" : "Pembelian baru"}`,
+  ];
+  if (paymentReference) lines.push(`Transaction ID: ${paymentReference}`);
+  if (dashboard) lines.push(`Admin: ${dashboard}`);
+
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: lines.join("\n"), disable_web_page_preview: true }),
+  });
+  if (!response.ok) throw new Error(`telegram_notification_http_${response.status}`);
+}
+
+async function submitManualPayment(request, env, ctx) {
+  if (!env.BACKUPS) return json({ ok: false, error: "payment_proof_storage_not_configured" }, 503);
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+
+  const token = cleanString(body.checkout_token, 160);
+  const payerNameInput = cleanString(body.payer_name, 120);
+  const paymentReference = cleanString(body.payment_reference, 160);
+  const proofContentType = cleanString(body.proof_content_type, 80).toLowerCase();
+  const proofBase64 = cleanString(body.proof_base64, 4_000_000);
+  if (!token) return badRequest("checkout_token_required");
+  if (!MANUAL_PAYMENT_IMAGE_TYPES.has(proofContentType)) return badRequest("invalid_proof_type");
+  if (!proofBase64) return badRequest("payment_proof_required");
+
+  const intent = await getCheckoutIntent(env, token);
+  if (!intent) return json({ ok: false, error: "checkout_not_found" }, 404);
+  if (checkoutHasExpired(intent)) return json({ ok: false, error: "checkout_expired" }, 410);
+  if (!intent.plan_key || intent.amount_cents == null || !intent.customer_email) {
+    return json({ ok: false, error: "checkout_plan_required" }, 409);
+  }
+  if (intent.status === "completed") return json({ ok: false, error: "checkout_already_completed" }, 409);
+  if (!['pending','processing'].includes(intent.status)) return json({ ok: false, error: "checkout_not_payable" }, 409);
+
+  const payerName = payerNameInput || cleanString(intent.customer_email, 120) || "Homika customer";
+
+  let proofBytes;
+  try {
+    proofBytes = base64ToBytes(stripDataUrlPrefix(proofBase64));
+  } catch (_) {
+    return badRequest("invalid_payment_proof");
+  }
+  if (!proofBytes.byteLength || proofBytes.byteLength > MANUAL_PAYMENT_MAX_PROOF_BYTES) {
+    return json({ ok: false, error: "payment_proof_too_large", max_bytes: MANUAL_PAYMENT_MAX_PROOF_BYTES }, 413);
+  }
+
+  const existing = await getManualPaymentSubmissionForCheckout(env, intent.id);
+  if (existing?.status === "approved") return json({ ok: false, error: "payment_already_approved" }, 409);
+
+  const submissionId = existing?.id || crypto.randomUUID();
+  const extension = proofExtensionFor(proofContentType);
+  const objectKey = `manual-payments/${intent.id}/${crypto.randomUUID()}.${extension}`;
+  await env.BACKUPS.put(objectKey, proofBytes, {
+    httpMetadata: { contentType: proofContentType },
+    customMetadata: {
+      kind: "manual_payment_proof",
+      checkout_id: intent.id,
+      submission_id: submissionId,
+    },
+  });
+
+  try {
+    if (existing) {
+      await env.DB.prepare(
+        `UPDATE manual_payment_submissions
+            SET payer_name = ?1, payment_reference = ?2, proof_object_key = ?3,
+                proof_content_type = ?4, proof_size = ?5, status = 'submitted',
+                admin_note = NULL, reviewed_at = NULL, updated_at = CURRENT_TIMESTAMP,
+                submitted_at = CURRENT_TIMESTAMP
+          WHERE id = ?6`
+      ).bind(payerName, paymentReference || null, objectKey, proofContentType, proofBytes.byteLength, submissionId).run();
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO manual_payment_submissions (
+           id, checkout_id, payer_name, payment_reference, proof_object_key,
+           proof_content_type, proof_size, status
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'submitted')`
+      ).bind(submissionId, intent.id, payerName, paymentReference || null, objectKey,
+        proofContentType, proofBytes.byteLength).run();
+    }
+  } catch (err) {
+    try { await env.BACKUPS.delete(objectKey); } catch (_) {}
+    throw err;
+  }
+
+  if (existing?.proof_object_key && existing.proof_object_key !== objectKey) {
+    try { await env.BACKUPS.delete(existing.proof_object_key); } catch (_) {}
+  }
+
+  const notification = notifyAdminManualPayment(env, intent, submissionId, paymentReference)
+    .catch((err) => console.error("admin_payment_notification_failed", err));
+  if (ctx?.waitUntil) ctx.waitUntil(notification);
+  else await notification;
+
+  return json({
+    ok: true,
+    message: "payment_submitted_for_review",
+    checkout: await checkoutIntentJson(env, await getCheckoutIntent(env, token)),
+  }, existing ? 200 : 201);
+}
+
+async function listManualPayments(request, env) {
+  const auth = authorizeAdmin(request, env);
+  if (!auth.ok) return auth.response;
+  const url = new URL(request.url);
+  const requestedStatus = cleanString(url.searchParams.get("status"), 20).toLowerCase();
+  const status = ["submitted", "approved", "rejected", "all"].includes(requestedStatus) ? requestedStatus : "submitted";
+  const limitRaw = Number(url.searchParams.get("limit") || 100);
+  const limit = Number.isSafeInteger(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 100;
+  const where = status === "all" ? "" : "WHERE m.status = ?1";
+  const statement = env.DB.prepare(
+    `SELECT m.id, m.checkout_id, m.payer_name, m.payment_reference, m.proof_content_type,
+            m.proof_size, m.status, m.admin_note, m.submitted_at, m.reviewed_at, m.updated_at,
+            c.public_token, c.action, c.customer_email, c.plan_key, c.amount_cents, c.currency,
+            c.status AS checkout_status, c.license_id, c.resulting_license_key
+       FROM manual_payment_submissions m
+       JOIN checkout_intents c ON c.id = m.checkout_id
+       ${where}
+      ORDER BY CASE WHEN m.status = 'submitted' THEN 0 ELSE 1 END,
+               m.submitted_at DESC
+      LIMIT ${limit}`
+  );
+  const result = status === "all" ? await statement.all() : await statement.bind(status).all();
+  const items = [];
+  for (const row of (result.results || [])) {
+    let licenseHint = null;
+    if (row.license_id) {
+      const license = await getLicenseById(env, row.license_id);
+      if (license) licenseHint = maskLicenseKey(license.license_key);
+    }
+    items.push({
+      id: row.id,
+      checkout_token: row.public_token,
+      checkout_reference: `HMK-${String(row.checkout_id).replace(/-/g, "").slice(0, 10).toUpperCase()}`,
+      action: row.action,
+      email: row.customer_email,
+      plan_key: row.plan_key,
+      amount_cents: Number(row.amount_cents || 0),
+      currency: row.currency || "MYR",
+      checkout_status: row.checkout_status,
+      license_hint: licenseHint,
+      payer_name: row.payer_name,
+      payment_reference: row.payment_reference || null,
+      proof_content_type: row.proof_content_type,
+      proof_size: Number(row.proof_size || 0),
+      status: row.status,
+      admin_note: row.admin_note || null,
+      submitted_at: row.submitted_at,
+      reviewed_at: row.reviewed_at || null,
+    });
+  }
+  return json({ ok: true, status, items });
+}
+
+async function getManualPaymentProof(request, env) {
+  const auth = authorizeAdmin(request, env);
+  if (!auth.ok) return auth.response;
+  if (!env.BACKUPS) return json({ ok: false, error: "payment_proof_storage_not_configured" }, 503);
+  const url = new URL(request.url);
+  const id = cleanString(url.searchParams.get("id"), 80);
+  if (!id) return badRequest("submission_id_required");
+  const submission = await env.DB.prepare(
+    `SELECT proof_object_key, proof_content_type FROM manual_payment_submissions WHERE id = ?1 LIMIT 1`
+  ).bind(id).first();
+  if (!submission?.proof_object_key) return json({ ok: false, error: "payment_proof_not_found" }, 404);
+  const object = await env.BACKUPS.get(submission.proof_object_key);
+  if (!object) return json({ ok: false, error: "payment_proof_not_found" }, 404);
+  const headers = corsHeaders();
+  headers["content-type"] = submission.proof_content_type || "application/octet-stream";
+  headers["content-disposition"] = `inline; filename="homika-payment-${id}.jpg"`;
+  return new Response(object.body, { status: 200, headers });
+}
+
+async function reviewManualPayment(request, env) {
+  const auth = authorizeAdmin(request, env);
+  if (!auth.ok) return auth.response;
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+  const id = cleanString(body.submission_id, 80);
+  const action = cleanString(body.action, 20).toLowerCase();
+  const adminNote = cleanString(body.admin_note, 500);
+  if (!id) return badRequest("submission_id_required");
+  if (!["approve", "reject"].includes(action)) return badRequest("invalid_review_action");
+
+  const submission = await env.DB.prepare(
+    `SELECT m.*, c.public_token, c.status AS checkout_status
+       FROM manual_payment_submissions m
+       JOIN checkout_intents c ON c.id = m.checkout_id
+      WHERE m.id = ?1 LIMIT 1`
+  ).bind(id).first();
+  if (!submission) return json({ ok: false, error: "payment_submission_not_found" }, 404);
+
+  if (action === "reject") {
+    if (submission.status === "approved") return json({ ok: false, error: "payment_already_approved" }, 409);
+    await env.DB.prepare(
+      `UPDATE manual_payment_submissions
+          SET status = 'rejected', admin_note = ?1, reviewed_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?2`
+    ).bind(adminNote || "Bukti pembayaran tidak dapat disahkan.", id).run();
+    const checkout = await getCheckoutIntent(env, submission.public_token);
+    return json({ ok: true, checkout: await checkoutIntentJson(env, checkout) });
+  }
+
+  if (submission.status === "approved" || submission.checkout_status === "completed") {
+    const checkout = await getCheckoutIntent(env, submission.public_token);
+    return json({ ok: true, idempotent: true, checkout: await checkoutIntentJson(env, checkout) });
+  }
+  if (submission.status !== "submitted") return json({ ok: false, error: "payment_not_ready_for_review" }, 409);
+
+  const intent = await getCheckoutIntent(env, submission.public_token);
+  if (!intent) return json({ ok: false, error: "checkout_not_found" }, 404);
+  if (!intent.plan_key || intent.amount_cents == null) return json({ ok: false, error: "checkout_plan_required" }, 409);
+  if (!["pending", "processing"].includes(intent.status)) return json({ ok: false, error: "checkout_not_payable" }, 409);
+
+  const providerPaymentId = `manual_qr:${submission.id}`;
+  const completed = await completePaidCheckout(env, intent, "manual_qr", providerPaymentId);
+  await env.DB.prepare(
+    `UPDATE manual_payment_submissions
+        SET status = 'approved', admin_note = ?1, reviewed_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?2`
+  ).bind(adminNote || null, id).run();
+  return json({ ok: true, checkout: await checkoutIntentJson(env, completed) });
+}
+
+async function getManualPaymentSubmissionForCheckout(env, checkoutId) {
+  return env.DB.prepare(
+    `SELECT id, checkout_id, payer_name, payment_reference, proof_object_key,
+            proof_content_type, proof_size, status, admin_note,
+            submitted_at, reviewed_at, updated_at
+       FROM manual_payment_submissions WHERE checkout_id = ?1 LIMIT 1`
+  ).bind(checkoutId).first();
+}
+
+function authorizeAdmin(request, env) {
+  const configured = cleanString(env.HOMIKA_ADMIN_SECRET, 2000);
+  if (!configured) return { ok: false, response: json({ ok: false, error: "admin_not_configured" }, 503) };
+  const supplied = cleanString(request.headers.get("x-homika-admin-secret"), 2000);
+  if (!supplied || supplied !== configured) return { ok: false, response: json({ ok: false, error: "unauthorized" }, 401) };
+  return { ok: true };
+}
+
+function stripDataUrlPrefix(value) {
+  const comma = value.indexOf(",");
+  return value.startsWith("data:") && comma >= 0 ? value.slice(comma + 1) : value;
+}
+
+function proofExtensionFor(contentType) {
+  if (contentType === "image/png") return "png";
+  if (contentType === "image/webp") return "webp";
+  return "jpg";
+}
+
+const MANUAL_PAYMENT_MAX_PROOF_BYTES = 2 * 1024 * 1024;
+const MANUAL_PAYMENT_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 async function insertCheckoutIntent(env, { action, licenseId = null, email = "", plan = null }) {
   const id = crypto.randomUUID();
   const token = generateCheckoutToken();
@@ -421,6 +764,7 @@ async function getCheckoutIntent(env, token) {
 async function checkoutIntentJson(env, intent) {
   let licenseHint = "";
   let entitlementExpiresAt = intent?.target_expires_at || null;
+  const manualPayment = intent?.id ? await getManualPaymentSubmissionForCheckout(env, intent.id) : null;
   if (intent?.license_id) {
     const license = await getLicenseById(env, intent.license_id);
     if (license) {
@@ -441,6 +785,14 @@ async function checkoutIntentJson(env, intent) {
     expires_at: intent.expires_at,
     entitlement_expires_at: entitlementExpiresAt,
     completed_at: intent.completed_at || null,
+    manual_payment: manualPayment ? {
+      status: manualPayment.status,
+      payer_name: manualPayment.payer_name || null,
+      payment_reference: manualPayment.payment_reference || null,
+      submitted_at: manualPayment.submitted_at || null,
+      reviewed_at: manualPayment.reviewed_at || null,
+      admin_note: manualPayment.admin_note || null,
+    } : null,
     ...(intent.status === "completed" && intent.action === "buy" ? { license_key: intent.resulting_license_key || null } : {}),
   };
 }
@@ -2302,7 +2654,7 @@ function corsHeaders() {
   return {
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type,authorization,x-homika-device-id,x-homika-backup-created-at,x-homika-record-count,x-homika-format-version,x-homika-database-schema-version,x-homika-payment-secret",
+    "access-control-allow-headers": "content-type,authorization,x-homika-device-id,x-homika-backup-created-at,x-homika-record-count,x-homika-format-version,x-homika-database-schema-version,x-homika-payment-secret,x-homika-admin-secret",
     "cache-control": "no-store",
   };
 }
