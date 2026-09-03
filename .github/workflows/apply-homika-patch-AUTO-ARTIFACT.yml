@@ -13,14 +13,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: homika-pro-patch
+  group: homika-pro-patch-release
   cancel-in-progress: false
 
 jobs:
-  apply:
+  apply-build-release:
     if: github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -32,7 +32,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -55,7 +55,7 @@ jobs:
             if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
               echo "has_patch=false" >> "$GITHUB_OUTPUT"
               echo "zip=" >> "$GITHUB_OUTPUT"
-              echo "No patch ZIP found. Manual build-only mode."
+              echo "No patch ZIP found. Manual signed release build mode."
               exit 0
             fi
 
@@ -105,16 +105,13 @@ jobs:
 
               zf.extractall(extract_root)
 
-          # Patch ZIPs always use repository-relative paths.
-          # Never strip a single top-level directory such as app/, because
-          # app/ is the real Android module path, not an archive wrapper.
-          source_root = extract_root
+          entries = [p for p in extract_root.iterdir() if p.name != "__MACOSX"]
+          source_root = entries[0] if len(entries) == 1 and entries[0].is_dir() else extract_root
 
           delete_manifest = source_root / "DELETE_FILES.txt"
           if delete_manifest.exists():
               for raw in delete_manifest.read_text(encoding="utf-8").splitlines():
                   value = raw.strip()
-
                   if not value or value.startswith("#"):
                       continue
 
@@ -129,9 +126,7 @@ jobs:
 
                   target = (repo / pathlib.Path(*rel.parts)).resolve()
                   if repo not in target.parents and target != repo:
-                      raise SystemExit(
-                          f"Delete path escaped repository: {value}"
-                      )
+                      raise SystemExit(f"Delete path escaped repository: {value}")
 
                   if target.is_dir():
                       shutil.rmtree(target)
@@ -145,7 +140,6 @@ jobs:
                   continue
 
               destination = repo / item.name
-
               if item.is_dir():
                   shutil.copytree(
                       item,
@@ -167,30 +161,75 @@ jobs:
           set -euo pipefail
           rm -f -- "$PATCH_ZIP"
 
-      - name: Build debug APK
+      - name: Generate Homika release version
+        id: version
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x gradlew
-          ./gradlew assembleDebug --console=plain
 
-      - name: Verify Homika Pro application ID
+          # One monotonically increasing release for every successful workflow run.
+          # Example: run 12 => v1.0.12 / versionCode 10012.
+          VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
+          VERSION_CODE="$((10000 + GITHUB_RUN_NUMBER))"
+
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "Homika version: $VERSION_NAME ($VERSION_CODE)"
+
+      - name: Decode Homika release keystore
+        shell: bash
+        env:
+          HOMIKA_RELEASE_KEYSTORE_BASE64: ${{ secrets.HOMIKA_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          test -n "${HOMIKA_RELEASE_KEYSTORE_BASE64:-}" || {
+            echo "Missing GitHub secret: HOMIKA_RELEASE_KEYSTORE_BASE64"
+            exit 1
+          }
+
+          printf '%s' "$HOMIKA_RELEASE_KEYSTORE_BASE64" |
+            base64 --decode > "$RUNNER_TEMP/homika-release.jks"
+
+      - name: Build signed Homika Pro release APK
+        shell: bash
+        env:
+          HOMIKA_VERSION_NAME: ${{ steps.version.outputs.name }}
+          HOMIKA_VERSION_CODE: ${{ steps.version.outputs.code }}
+          HOMIKA_KEYSTORE_PATH: ${{ runner.temp }}/homika-release.jks
+          HOMIKA_KEYSTORE_PASSWORD: ${{ secrets.HOMIKA_RELEASE_KEYSTORE_PASSWORD }}
+          HOMIKA_KEY_ALIAS: homika
+          HOMIKA_KEY_PASSWORD: ${{ secrets.HOMIKA_RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          test -n "${HOMIKA_KEYSTORE_PASSWORD:-}" || {
+            echo "Missing GitHub secret: HOMIKA_RELEASE_KEYSTORE_PASSWORD"
+            exit 1
+          }
+
+          chmod +x gradlew
+          ./gradlew assembleRelease --console=plain
+
+      - name: Verify and prepare signed APK
         id: apk
         shell: bash
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
         run: |
           set -euo pipefail
 
-          APK="$(find app/build/outputs/apk/debug -type f -name '*.apk' | head -n1)"
+          APK="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n1)"
           test -n "${APK:-}" || {
-            echo "Debug APK not found."
+            echo "Release APK not found."
             exit 1
           }
 
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n1)"
-          test -x "$AAPT" || {
-            echo "aapt not found."
-            exit 1
-          }
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n1)"
+          test -x "$AAPT" || { echo "aapt not found."; exit 1; }
+          test -x "$APKSIGNER" || { echo "apksigner not found."; exit 1; }
 
           BADGING="$("$AAPT" dump badging "$APK" | head -n1)"
           echo "$BADGING"
@@ -200,19 +239,45 @@ jobs:
             exit 1
           }
 
-          mkdir -p "$RUNNER_TEMP/homika-apk"
-          cp "$APK" "$RUNNER_TEMP/homika-apk/Homika-Pro-debug.apk"
+          echo "$BADGING" | grep -F "versionCode='${VERSION_CODE}'" >/dev/null || {
+            echo "Expected versionCode ${VERSION_CODE} was not found."
+            exit 1
+          }
 
-          echo "artifact_path=$RUNNER_TEMP/homika-apk/Homika-Pro-debug.apk" >> "$GITHUB_OUTPUT"
-          echo "Verified application ID: com.homika.app"
+          echo "$BADGING" | grep -F "versionName='${VERSION_NAME}'" >/dev/null || {
+            echo "Expected versionName ${VERSION_NAME} was not found."
+            exit 1
+          }
 
-      - name: Upload debug APK artifact
+          RELEASE_DIR="$RUNNER_TEMP/homika-release-output"
+          mkdir -p "$RELEASE_DIR"
+
+          OUT="$RELEASE_DIR/Homika-Pro-v${VERSION_NAME}.apk"
+          SHA="$OUT.sha256"
+          CERT="$RELEASE_DIR/Homika-Pro-v${VERSION_NAME}-certificate.txt"
+
+          cp "$APK" "$OUT"
+          "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee "$CERT"
+
+          (
+            cd "$RELEASE_DIR"
+            sha256sum "$(basename "$OUT")" > "$(basename "$SHA")"
+          )
+
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "cert=$CERT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload signed release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Homika-Pro-Debug-${{ github.run_number }}
-          path: ${{ steps.apk.outputs.artifact_path }}
+          name: Homika-Pro-Release-${{ steps.version.outputs.name }}
+          path: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.apk.outputs.sha }}
+            ${{ steps.apk.outputs.cert }}
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
           compression-level: 0
 
       - name: Commit successful patch
@@ -220,6 +285,7 @@ jobs:
         shell: bash
         env:
           PATCH_ZIP: ${{ steps.patch.outputs.zip }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
         run: |
           set -euo pipefail
 
@@ -230,34 +296,60 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "Nothing to commit."
-            exit 0
+          else
+            git commit -m "chore: apply ${PATCH_ZIP} for Homika v${VERSION_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
-          git commit -m "chore: apply ${PATCH_ZIP}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Publish GitHub Release for updater
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          APK: ${{ steps.apk.outputs.path }}
+          SHA: ${{ steps.apk.outputs.sha }}
+          CERT: ${{ steps.apk.outputs.cert }}
+          HAS_PATCH: ${{ steps.patch.outputs.has_patch }}
+          PATCH_ZIP: ${{ steps.patch.outputs.zip }}
+        run: |
+          set -euo pipefail
+
+          TAG="v${VERSION_NAME}"
+
+          if [[ "$HAS_PATCH" == "true" ]]; then
+            NOTES="Automated Homika Pro release ${TAG}. Applied patch: ${PATCH_ZIP}."
+          else
+            NOTES="Automated Homika Pro signed release ${TAG}."
+          fi
+
+          gh release create "$TAG" \
+            "$APK" \
+            "$SHA" \
+            "$CERT" \
+            --target "$(git rev-parse HEAD)" \
+            --title "Homika Pro ${TAG}" \
+            --notes "$NOTES" \
+            --latest
 
       - name: Summary
         shell: bash
         env:
-          PATCH_ZIP: ${{ steps.patch.outputs.zip }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
           HAS_PATCH: ${{ steps.patch.outputs.has_patch }}
+          PATCH_ZIP: ${{ steps.patch.outputs.zip }}
         run: |
           {
+            echo "## Homika Pro signed release"
+            echo
+            echo "- Version: v${VERSION_NAME} (${VERSION_CODE})"
+            echo "- Package: com.homika.app"
+            echo "- Signed release APK built with the Homika Pro release key."
+            echo "- GitHub Release published for the in-app updater."
+            echo "- Signed APK also uploaded as an Actions artifact."
             if [[ "$HAS_PATCH" == "true" ]]; then
-              echo "## Homika Pro patch applied"
-              echo
-              echo "- Patch: ${PATCH_ZIP}"
-              echo "- Source committed only after successful verification."
+              echo "- Applied patch: ${PATCH_ZIP}"
             else
-              echo "## Homika Pro APK build"
-              echo
-              echo "- Manual build-only mode."
-              echo "- No source changes were made."
+              echo "- Manual release build mode: no source patch applied."
             fi
-
-            echo "- Debug build passed."
-            echo "- APK application ID verified as com.homika.app."
-            echo "- Debug APK uploaded as Actions Artifact."
-            echo "- Artifact retention: 14 days."
           } >> "$GITHUB_STEP_SUMMARY"
-          
