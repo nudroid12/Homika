@@ -15,7 +15,8 @@ function esc(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;'
 function planLabel(k){return ({'1_month':'1 Bulan','3_month':'3 Bulan','6_month':'6 Bulan','1_year':'1 Tahun'})[k]||k||'-'}
 
 async function api(path,options={}){
-  const r=await fetch(`${API_BASE}${path}`,{headers:{Accept:'application/json','x-homika-admin-secret':state.secret,...(options.headers||{})},...options});
+  const headers={Accept:'application/json','x-homika-admin-secret':state.secret,...(options.headers||{})};
+  const r=await fetch(`${API_BASE}${path}`,{...options,headers});
   const b=await r.json().catch(()=>({ok:false,error:'invalid_response'}));
   if(!r.ok||!b.ok){const e=new Error(b.error||`http_${r.status}`);e.code=b.error||`http_${r.status}`;throw e}
   return b;
@@ -78,7 +79,12 @@ async function review(id,action,card){
   try{
     await api('/v1/admin/payments/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({submission_id:id,action,admin_note:note})});
     await loadPayments();
-  }catch(err){alert(`Tindakan gagal (${err.code||'error'}).`);buttons.forEach(b=>b.disabled=false)}
+  }catch(err){
+    if(err.code==='unauthorized'||err.code==='admin_not_configured'){
+      sessionStorage.removeItem('homika_admin_secret');state.secret='';secretInput.value='';showLogin(err.code==='admin_not_configured'?'Admin Secret belum dikonfigurasi pada Worker.':'Sesi admin tamat atau Admin Secret tidak sah. Sila log masuk semula.');return;
+    }
+    alert(`Tindakan gagal (${err.code||'error'}).`);buttons.forEach(b=>b.disabled=false)
+  }
 }
 
 loginForm.addEventListener('submit',async e=>{e.preventDefault();state.secret=secretInput.value.trim();if(!state.secret)return;sessionStorage.setItem('homika_admin_secret',state.secret);await loadPayments()});
