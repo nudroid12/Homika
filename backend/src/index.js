@@ -15,7 +15,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 11,
+          version: 12,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -32,7 +32,9 @@ export default {
           trial_max_devices: 1,
           trial_error_reporting: true,
           trial_storage_check: true,
-          trial_response_contract: 2,
+          trial_response_contract: 3,
+          trial_ledger: "hashed_device_email_v2",
+          trial_customer_dependency: false,
           activation_theme_fix: true,
         });
       }
@@ -253,28 +255,58 @@ async function claimTrial(request, env) {
   }
 
   const deviceHash = await sha256Hex(deviceId);
-  const customerHash = await sha256Hex(email);
+  const emailHash = await sha256Hex(email);
 
-  const deviceRedemption = await env.DB.prepare(
-    `SELECT id, license_id, customer_hash, device_hash
-       FROM trial_redemptions
+  // V2 trial ledger deliberately stores only hashes and does not depend on
+  // the customers table. This keeps trial eligibility independent of legacy
+  // customer schema/constraints while still enforcing one trial per device/email.
+  const deviceClaim = await env.DB.prepare(
+    `SELECT id, license_id, email_hash, device_hash
+       FROM trial_claims_v2
       WHERE product_id = ?1 AND device_hash = ?2
       LIMIT 1`
   ).bind("homika_pro", deviceHash).first();
 
-  const customerRedemption = await env.DB.prepare(
-    `SELECT id, license_id, customer_hash, device_hash
-       FROM trial_redemptions
-      WHERE product_id = ?1 AND customer_hash = ?2
+  const emailClaim = await env.DB.prepare(
+    `SELECT id, license_id, email_hash, device_hash
+       FROM trial_claims_v2
+      WHERE product_id = ?1 AND email_hash = ?2
       LIMIT 1`
-  ).bind("homika_pro", customerHash).first();
+  ).bind("homika_pro", emailHash).first();
 
-  if (deviceRedemption || customerRedemption) {
-    const sameRedemption =
-      deviceRedemption && customerRedemption && deviceRedemption.id === customerRedemption.id;
+  // Preserve eligibility history created by Patch 13A if any successful
+  // redemption already exists in the legacy ledger.
+  let legacyDeviceClaim = null;
+  let legacyEmailClaim = null;
+  try {
+    legacyDeviceClaim = await env.DB.prepare(
+      `SELECT id, license_id, customer_hash AS email_hash, device_hash
+         FROM trial_redemptions
+        WHERE product_id = ?1 AND device_hash = ?2
+        LIMIT 1`
+    ).bind("homika_pro", deviceHash).first();
 
-    if (sameRedemption) {
-      const existingLicense = await getLicenseById(env, deviceRedemption.license_id);
+    legacyEmailClaim = await env.DB.prepare(
+      `SELECT id, license_id, customer_hash AS email_hash, device_hash
+         FROM trial_redemptions
+        WHERE product_id = ?1 AND customer_hash = ?2
+        LIMIT 1`
+    ).bind("homika_pro", emailHash).first();
+  } catch (err) {
+    // The V2 ledger is authoritative. Legacy-table read failure must not
+    // prevent a new trial after migration 0007 is installed.
+    console.warn("Legacy trial ledger unavailable", err);
+  }
+
+  const byDevice = deviceClaim || legacyDeviceClaim;
+  const byEmail = emailClaim || legacyEmailClaim;
+
+  if (byDevice || byEmail) {
+    const sameClaim =
+      byDevice && byEmail && byDevice.license_id === byEmail.license_id;
+
+    if (sameClaim) {
+      const existingLicense = await getLicenseById(env, byDevice.license_id);
       if (existingLicense && evaluateLicense(existingLicense).valid) {
         const current = await env.DB.prepare(
           `SELECT id, status
@@ -286,23 +318,31 @@ async function claimTrial(request, env) {
         if (current) {
           await env.DB.prepare(
             `UPDATE devices
-                SET status = 'active', device_name = ?1,
-                    last_seen_at = CURRENT_TIMESTAMP, deactivated_at = NULL
+                SET status = 'active',
+                    device_name = ?1,
+                    last_seen_at = CURRENT_TIMESTAMP,
+                    deactivated_at = NULL
               WHERE id = ?2`
           ).bind(deviceName || null, current.id).run();
         } else {
           await env.DB.prepare(
             `INSERT INTO devices (id, license_id, device_hash, device_name, status)
              VALUES (?1, ?2, ?3, ?4, 'active')`
-          ).bind(crypto.randomUUID(), existingLicense.id, deviceHash, deviceName || null).run();
+          ).bind(
+            crypto.randomUUID(),
+            existingLicense.id,
+            deviceHash,
+            deviceName || null,
+          ).run();
         }
+
         return activationResponse(env, existingLicense, deviceHash, true);
       }
 
       return trialJson({ ok: false, error: "trial_already_used" }, 409);
     }
 
-    if (deviceRedemption) {
+    if (byDevice) {
       return trialJson({ ok: false, error: "trial_already_used_device" }, 409);
     }
     return trialJson({ ok: false, error: "trial_already_used_customer" }, 409);
@@ -320,76 +360,107 @@ async function claimTrial(request, env) {
     return trialJson({ ok: false, error: "trial_unavailable" }, 503);
   }
 
-  // Reuse an existing customer row when the email is already known. This avoids
-  // duplicate-customer assumptions and keeps a trial linked to the same customer
-  // used by a prior paid/test licence.
-  const existingCustomer = await env.DB.prepare(
-    `SELECT id
-       FROM customers
-      WHERE lower(trim(email)) = lower(trim(?1))
-      ORDER BY created_at ASC
-      LIMIT 1`
-  ).bind(email).first();
-
-  const customerId = existingCustomer?.id || crypto.randomUUID();
   const licenseId = crypto.randomUUID();
-  const redemptionId = crypto.randomUUID();
   const licenseKey = generateTrialLicenseKey();
   const expiresAt = formatSqliteTimestamp(Date.now() + (7 * 24 * 60 * 60 * 1000));
 
+  // Create sequentially. This avoids cross-table customer dependencies and
+  // makes cleanup deterministic if a later write fails.
   try {
-    const statements = [];
-    if (!existingCustomer) {
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO customers (id, email) VALUES (?1, ?2)`
-        ).bind(customerId, email)
-      );
-    }
-
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO licenses (
-           id, license_key, product_id, customer_id, status,
-           expires_at, max_devices, plan_type, plan_key
-         ) VALUES (?1, ?2, 'homika_pro', ?3, 'active', ?4, 1, 'trial', 'trial_7d')`
-      ).bind(licenseId, licenseKey, customerId, expiresAt),
-      env.DB.prepare(
-        `INSERT INTO devices (
-           id, license_id, device_hash, device_name, status
-         ) VALUES (?1, ?2, ?3, ?4, 'active')`
-      ).bind(crypto.randomUUID(), licenseId, deviceHash, deviceName || null),
-      env.DB.prepare(
-        `INSERT INTO trial_redemptions (
-           id, product_id, license_id, customer_id,
-           customer_hash, device_hash, redeemed_at, expires_at
-         ) VALUES (?1, 'homika_pro', ?2, ?3, ?4, ?5, CURRENT_TIMESTAMP, ?6)`
-      ).bind(redemptionId, licenseId, customerId, customerHash, deviceHash, expiresAt),
-    );
-
-    await env.DB.batch(statements);
+    await env.DB.prepare(
+      `INSERT INTO licenses (
+         id, license_key, product_id, customer_id, status,
+         expires_at, max_devices, plan_type, plan_key
+       ) VALUES (?1, ?2, 'homika_pro', NULL, 'active', ?3, 1, 'trial', 'trial_7d')`
+    ).bind(licenseId, licenseKey, expiresAt).run();
   } catch (err) {
-    console.warn("Trial claim race or insert failure", err);
+    console.error("Trial licence insert failed", err);
+    return trialJson({ ok: false, error: "trial_server_error" }, 500);
+  }
+
+  try {
+    await env.DB.prepare(
+      `INSERT INTO devices (
+         id, license_id, device_hash, device_name, status
+       ) VALUES (?1, ?2, ?3, ?4, 'active')`
+    ).bind(
+      crypto.randomUUID(),
+      licenseId,
+      deviceHash,
+      deviceName || null,
+    ).run();
+  } catch (err) {
+    console.error("Trial device insert failed", err);
+    await cleanupFailedTrial(env, licenseId);
+    return trialJson({ ok: false, error: "trial_server_error" }, 500);
+  }
+
+  try {
+    await env.DB.prepare(
+      `INSERT INTO trial_claims_v2 (
+         id, product_id, license_id, email_hash, device_hash,
+         redeemed_at, expires_at
+       ) VALUES (?1, 'homika_pro', ?2, ?3, ?4, CURRENT_TIMESTAMP, ?5)`
+    ).bind(
+      crypto.randomUUID(),
+      licenseId,
+      emailHash,
+      deviceHash,
+      expiresAt,
+    ).run();
+  } catch (err) {
+    // A concurrent request may have won the unique device/email claim.
+    console.warn("Trial claim ledger insert failed", err);
+    await cleanupFailedTrial(env, licenseId);
 
     const racedDevice = await env.DB.prepare(
-      `SELECT id FROM trial_redemptions
-        WHERE product_id = 'homika_pro' AND device_hash = ?1 LIMIT 1`
+      `SELECT license_id
+         FROM trial_claims_v2
+        WHERE product_id = 'homika_pro' AND device_hash = ?1
+        LIMIT 1`
     ).bind(deviceHash).first();
-    if (racedDevice) return trialJson({ ok: false, error: "trial_already_used_device" }, 409);
+    if (racedDevice) {
+      return trialJson({ ok: false, error: "trial_already_used_device" }, 409);
+    }
 
-    const racedCustomer = await env.DB.prepare(
-      `SELECT id FROM trial_redemptions
-        WHERE product_id = 'homika_pro' AND customer_hash = ?1 LIMIT 1`
-    ).bind(customerHash).first();
-    if (racedCustomer) return trialJson({ ok: false, error: "trial_already_used_customer" }, 409);
+    const racedEmail = await env.DB.prepare(
+      `SELECT license_id
+         FROM trial_claims_v2
+        WHERE product_id = 'homika_pro' AND email_hash = ?1
+        LIMIT 1`
+    ).bind(emailHash).first();
+    if (racedEmail) {
+      return trialJson({ ok: false, error: "trial_already_used_customer" }, 409);
+    }
 
-    console.error("Trial claim internal error", err);
     return trialJson({ ok: false, error: "trial_server_error" }, 500);
   }
 
   const license = await getLicenseById(env, licenseId);
-  if (!license) return trialJson({ ok: false, error: "trial_server_error" }, 500);
+  if (!license) {
+    await cleanupFailedTrial(env, licenseId);
+    return trialJson({ ok: false, error: "trial_server_error" }, 500);
+  }
+
   return activationResponse(env, license, deviceHash, false);
+}
+
+async function cleanupFailedTrial(env, licenseId) {
+  try {
+    await env.DB.prepare(
+      `DELETE FROM trial_claims_v2 WHERE license_id = ?1`
+    ).bind(licenseId).run();
+  } catch (_) {}
+  try {
+    await env.DB.prepare(
+      `DELETE FROM devices WHERE license_id = ?1`
+    ).bind(licenseId).run();
+  } catch (_) {}
+  try {
+    await env.DB.prepare(
+      `DELETE FROM licenses WHERE id = ?1 AND plan_type = 'trial'`
+    ).bind(licenseId).run();
+  } catch (_) {}
 }
 
 function trialJson(data, status = 200) {
@@ -398,12 +469,12 @@ function trialJson(data, status = 200) {
 
 async function trialStorageReadiness(env) {
   try {
-    const table = await env.DB.prepare(
+    const ledger = await env.DB.prepare(
       `SELECT name FROM sqlite_master
-        WHERE type = 'table' AND name = 'trial_redemptions'
+        WHERE type = 'table' AND name = 'trial_claims_v2'
         LIMIT 1`
     ).first();
-    if (!table) return { ready: false, reason: "trial_redemptions_missing" };
+    if (!ledger) return { ready: false, reason: "trial_claims_v2_missing" };
 
     const plan = await env.DB.prepare(
       `SELECT plan_key, duration_value, max_devices
@@ -413,8 +484,25 @@ async function trialStorageReadiness(env) {
     ).first();
     if (!plan) return { ready: false, reason: "trial_plan_missing" };
 
-    // This lightweight query also confirms that the Patch 13A plan_key column exists.
-    await env.DB.prepare(`SELECT plan_key FROM licenses LIMIT 1`).first();
+    // Confirm the licence columns required by self-service trial creation.
+    const columns = await env.DB.prepare(`PRAGMA table_info(licenses)`).all();
+    const names = new Set((columns.results || []).map((row) => String(row.name || "")));
+    for (const required of [
+      "id",
+      "license_key",
+      "product_id",
+      "customer_id",
+      "status",
+      "expires_at",
+      "max_devices",
+      "plan_type",
+      "plan_key",
+    ]) {
+      if (!names.has(required)) {
+        return { ready: false, reason: `licenses_${required}_missing` };
+      }
+    }
+
     return { ready: true };
   } catch (err) {
     console.warn("Trial storage readiness check failed", err);

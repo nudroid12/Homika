@@ -44,6 +44,12 @@ import com.homiq.app.data.license.LicenseAccess
 import com.homiq.app.data.license.LicenseCommercialLinks
 import com.homiq.app.data.license.LicenseUiState
 import com.homiq.app.ui.components.HomikaBrandMark
+import com.homiq.app.ui.theme.HomikaInk
+import com.homiq.app.ui.theme.HomikaMintSoft
+import com.homiq.app.ui.theme.HomikaOutline
+import com.homiq.app.ui.theme.HomikaSurface
+import com.homiq.app.ui.theme.HomikaTeal
+import com.homiq.app.ui.theme.HomikaTealDeep
 
 @Composable
 fun LicenseActivationScreen(
@@ -72,8 +78,8 @@ fun LicenseActivationScreen(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
-        Column(
-            modifier = Modifier
+            Column(
+                modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
@@ -330,9 +336,9 @@ private fun TrialOfferCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = HomikaTeal,
+        contentColor = HomikaSurface,
+        border = BorderStroke(1.dp, HomikaTealDeep),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -342,12 +348,12 @@ private fun TrialOfferCard(
                 text = stringResource(R.string.license_trial_offer_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = HomikaSurface,
             )
             Text(
                 text = stringResource(R.string.license_trial_offer_body),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = HomikaSurface,
             )
             OutlinedTextField(
                 value = email,
@@ -367,8 +373,8 @@ private fun TrialOfferCard(
                     disabledContainerColor = MaterialTheme.colorScheme.surface,
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedTextColor = HomikaSurface,
+                    unfocusedTextColor = HomikaSurface,
                     focusedLabelColor = MaterialTheme.colorScheme.primary,
                     unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -380,11 +386,17 @@ private fun TrialOfferCard(
                 onClick = onClaim,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = email.isNotBlank() && !busy,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = HomikaMintSoft,
+                    contentColor = HomikaTealDeep,
+                    disabledContainerColor = HomikaMintSoft.copy(alpha = 0.45f),
+                    disabledContentColor = HomikaTealDeep.copy(alpha = 0.60f),
+                ),
             ) {
                 if (busy) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = HomikaTealDeep,
                         strokeWidth = 2.dp,
                     )
                     Spacer(Modifier.width(8.dp))
@@ -394,7 +406,7 @@ private fun TrialOfferCard(
             Text(
                 text = stringResource(R.string.license_trial_once_note),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = HomikaSurface,
             )
         }
     }
@@ -405,9 +417,9 @@ private fun AnnualOfferCard(maxDevices: Int) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = HomikaMintSoft,
+        contentColor = HomikaInk,
+        border = BorderStroke(1.dp, HomikaOutline),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -417,12 +429,12 @@ private fun AnnualOfferCard(maxDevices: Int) {
                 text = stringResource(R.string.license_annual_primary_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = HomikaInk,
             )
             Text(
                 text = stringResource(R.string.license_annual_primary_body, maxDevices),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = HomikaInk,
             )
         }
     }
