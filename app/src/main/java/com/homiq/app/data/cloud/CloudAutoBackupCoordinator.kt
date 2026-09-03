@@ -32,6 +32,7 @@ class CloudAutoBackupCoordinator(
     private val runMutex = Mutex()
     private var scheduledJob: Job? = null
     private var started = false
+    private var foreground = false
 
     private val mutableState = MutableStateFlow(readState())
     val state: StateFlow<CloudAutoBackupState> = mutableState.asStateFlow()
@@ -48,19 +49,27 @@ class CloudAutoBackupCoordinator(
                 scheduleAfterDebounce()
             }
         }
-
-        if (
-            preferences.automaticCloudBackupEnabled &&
-            preferences.cloudBackupPending
-        ) {
-            schedule(delayMillis = STARTUP_RETRY_DELAY_MILLIS)
-        }
     }
 
     fun markLocalDataChanged() {
         preferences.setCloudBackupPending(true)
         publishState()
         scheduleAfterDebounce()
+    }
+
+    @Synchronized
+    fun onAppForeground() {
+        foreground = true
+        if (preferences.automaticCloudBackupEnabled && preferences.cloudBackupPending) {
+            schedule(delayMillis = STARTUP_RETRY_DELAY_MILLIS)
+        }
+    }
+
+    @Synchronized
+    fun onAppBackground() {
+        foreground = false
+        scheduledJob?.cancel()
+        scheduledJob = null
     }
 
     fun setEnabled(enabled: Boolean) {
@@ -89,7 +98,7 @@ class CloudAutoBackupCoordinator(
     }
 
     private fun scheduleAfterDebounce() {
-        if (!preferences.automaticCloudBackupEnabled) return
+        if (!preferences.automaticCloudBackupEnabled || !foreground) return
         schedule(DEBOUNCE_MILLIS)
     }
 
@@ -107,6 +116,7 @@ class CloudAutoBackupCoordinator(
 
     private suspend fun runPendingBackup() {
         if (
+            !foreground ||
             !preferences.automaticCloudBackupEnabled ||
             !preferences.cloudBackupPending
         ) {
@@ -125,6 +135,7 @@ class CloudAutoBackupCoordinator(
 
         runMutex.withLock {
             if (
+                !foreground ||
                 !preferences.automaticCloudBackupEnabled ||
                 !preferences.cloudBackupPending
             ) {

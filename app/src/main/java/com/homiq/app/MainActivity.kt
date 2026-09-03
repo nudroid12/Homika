@@ -31,12 +31,14 @@ class MainActivity : AppCompatActivity() {
         homiqApplication.container
             .updateManager
             .onAppForeground()
+        homiqApplication.container
+            .onAppForeground()
     }
 
     override fun onStop() {
+        val homiqApplication = application as HomiqApplication
+        homiqApplication.container.onAppBackground()
         if (!isChangingConfigurations) {
-            val homiqApplication =
-                application as HomiqApplication
             homiqApplication.container
                 .appLockService
                 .onAppBackground()

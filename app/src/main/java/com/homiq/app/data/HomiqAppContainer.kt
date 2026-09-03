@@ -5,9 +5,9 @@ import com.homiq.app.data.account.AccountPreferences
 import com.homiq.app.data.backup.BackupPreferences
 import com.homiq.app.data.backup.HomiqBackupService
 import com.homiq.app.data.cloud.CloudAutoBackupCoordinator
-import com.homiq.app.data.cloud.CloudSyncCoordinator
-import com.homiq.app.data.cloud.CloudSyncPreferences
-import com.homiq.app.data.cloud.HomikaCloudSyncService
+import com.homiq.app.data.cloud.CloudSnapshotSyncCoordinator
+import com.homiq.app.data.cloud.CloudSnapshotSyncPreferences
+import com.homiq.app.data.cloud.HomikaCloudSnapshotSyncService
 import com.homiq.app.data.cloud.HomikaCloudBackupService
 import com.homiq.app.data.local.HomiqDatabase
 import com.homiq.app.data.license.LicenseRepository
@@ -47,7 +47,7 @@ class HomiqAppContainer(
         AppLockService(appLockPreferences)
     }
 
-    // Kept as a generic local change signal for the future Homika Cloud Sync layer.
+    // Shared local change signal for cloud sync and automatic cloud backup.
     val syncChanges: SyncChangeSignal by lazy {
         SyncChangeSignal()
     }
@@ -124,32 +124,43 @@ class HomiqAppContainer(
         )
     }
 
-    val cloudSyncPreferences: CloudSyncPreferences by lazy {
-        CloudSyncPreferences(context)
+    val cloudSnapshotSyncPreferences: CloudSnapshotSyncPreferences by lazy {
+        CloudSnapshotSyncPreferences(context)
     }
 
-    val cloudSyncService: HomikaCloudSyncService by lazy {
-        HomikaCloudSyncService(
+    val cloudSnapshotSyncService: HomikaCloudSnapshotSyncService by lazy {
+        HomikaCloudSnapshotSyncService(
             database = database,
             backupService = backupService,
             licenseRepository = licenseRepository,
-            preferences = cloudSyncPreferences,
+            preferences = cloudSnapshotSyncPreferences,
         )
     }
 
-    val cloudSyncCoordinator: CloudSyncCoordinator by lazy {
-        CloudSyncCoordinator(
+    val cloudSnapshotSyncCoordinator: CloudSnapshotSyncCoordinator by lazy {
+        CloudSnapshotSyncCoordinator(
             changes = syncChanges,
-            service = cloudSyncService,
-            preferences = cloudSyncPreferences,
+            service = cloudSnapshotSyncService,
+            preferences = cloudSnapshotSyncPreferences,
             licenseRepository = licenseRepository,
             onRemoteApplied = cloudAutoBackupCoordinator::markLocalDataChanged,
         )
     }
 
     fun startBackgroundServices() {
+        // Observers may stay alive with the process, but network sync is foreground-gated.
         cloudAutoBackupCoordinator.start()
-        cloudSyncCoordinator.start()
+        cloudSnapshotSyncCoordinator.startObserver()
+    }
+
+    fun onAppForeground() {
+        cloudAutoBackupCoordinator.onAppForeground()
+        cloudSnapshotSyncCoordinator.onAppForeground()
+    }
+
+    fun onAppBackground() {
+        cloudSnapshotSyncCoordinator.onAppBackground()
+        cloudAutoBackupCoordinator.onAppBackground()
     }
 
     val updateManager: HomikaUpdateManager by lazy {
