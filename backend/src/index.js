@@ -15,13 +15,14 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 5,
+          version: 6,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
           cloud_backup_retention: 5,
           cloud_sync: true,
-          cloud_sync_protocol: 1,
+          cloud_sync_protocol: 2,
+          cloud_sync_mode: "encrypted_device_snapshots",
         });
       }
 
@@ -64,6 +65,18 @@ export default {
 
       if (request.method === "GET" && url.pathname === "/v1/cloud/sync/pull") {
         return pullCloudSync(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/cloud/sync/snapshots") {
+        return listCloudSyncSnapshots(request, env);
+      }
+
+      if (request.method === "PUT" && url.pathname === "/v1/cloud/sync/snapshots/current") {
+        return uploadCloudSyncSnapshot(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/cloud/sync/snapshots/content") {
+        return cloudSyncSnapshotContent(request, env);
       }
 
       if (request.method === "GET" && url.pathname === "/v1/licenses/status") {
@@ -686,6 +699,187 @@ function bytesToBase64(bytes) {
 const MAX_CLOUD_BACKUP_BYTES = 10 * 1024 * 1024;
 const CLOUD_BACKUP_RETENTION = 5;
 
+
+
+const CLOUD_SYNC_SNAPSHOT_MAX_BYTES = 10 * 1024 * 1024;
+
+async function listCloudSyncSnapshots(request, env) {
+  const auth = await authenticateCloudRequest(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await env.DB.prepare(
+    `SELECT device_hash, object_key, updated_at_epoch_millis, record_count,
+            format_version, database_schema_version, byte_size, sha256,
+            content_sha256, updated_at
+       FROM cloud_sync_snapshots
+      WHERE license_id = ?1 AND status = 'ready'
+      ORDER BY updated_at_epoch_millis DESC, updated_at DESC`
+  ).bind(auth.license.id).all();
+
+  return json({
+    ok: true,
+    protocol: 2,
+    mode: "encrypted_device_snapshots",
+    snapshots: (result.results || []).map((row) =>
+      cloudSyncSnapshotJson(row, row.device_hash === auth.deviceHash)
+    ),
+  });
+}
+
+async function uploadCloudSyncSnapshot(request, env) {
+  const auth = await authenticateCloudRequest(request, env);
+  if (!auth.ok) return auth.response;
+  if (!env.BACKUPS) return json({ ok: false, error: "cloud_storage_not_configured" }, 503);
+
+  const raw = new Uint8Array(await request.arrayBuffer());
+  if (raw.byteLength <= 0) return badRequest("sync_snapshot_payload_required");
+  if (raw.byteLength > CLOUD_SYNC_SNAPSHOT_MAX_BYTES) {
+    return json({
+      ok: false,
+      error: "sync_snapshot_too_large",
+      max_bytes: CLOUD_SYNC_SNAPSHOT_MAX_BYTES,
+    }, 413);
+  }
+
+  const contentSha256 = cleanString(request.headers.get("x-homika-content-sha256"), 64).toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(contentSha256)) {
+    return badRequest("sync_snapshot_content_sha256_required");
+  }
+
+  const updatedAtMillis = positiveHeaderInt(request, "x-homika-sync-updated-at") || Date.now();
+  const recordCount = nonNegativeHeaderInt(request, "x-homika-record-count");
+  const formatVersion = positiveHeaderInt(request, "x-homika-format-version") || 1;
+  const databaseSchemaVersion = positiveHeaderInt(request, "x-homika-database-schema-version") || 1;
+  const sha256 = await sha256HexBytes(raw);
+
+  const previous = await env.DB.prepare(
+    `SELECT object_key
+       FROM cloud_sync_snapshots
+      WHERE license_id = ?1 AND device_hash = ?2
+      LIMIT 1`
+  ).bind(auth.license.id, auth.deviceHash).first();
+
+  const objectKey = `homika_pro/${auth.license.id}/sync/${auth.deviceHash}/${crypto.randomUUID()}.hcs`;
+  await env.BACKUPS.put(objectKey, raw, {
+    httpMetadata: { contentType: "application/octet-stream" },
+    customMetadata: {
+      licenseId: auth.license.id,
+      deviceHash: auth.deviceHash,
+      contentSha256,
+      updatedAtMillis: String(updatedAtMillis),
+      sha256,
+    },
+  });
+
+  try {
+    await env.DB.prepare(
+      `INSERT INTO cloud_sync_snapshots (
+         license_id, device_hash, object_key, updated_at_epoch_millis,
+         record_count, format_version, database_schema_version,
+         byte_size, sha256, content_sha256, status, created_at, updated_at
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'ready', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT(license_id, device_hash) DO UPDATE SET
+         object_key = excluded.object_key,
+         updated_at_epoch_millis = excluded.updated_at_epoch_millis,
+         record_count = excluded.record_count,
+         format_version = excluded.format_version,
+         database_schema_version = excluded.database_schema_version,
+         byte_size = excluded.byte_size,
+         sha256 = excluded.sha256,
+         content_sha256 = excluded.content_sha256,
+         status = 'ready',
+         updated_at = CURRENT_TIMESTAMP`
+    ).bind(
+      auth.license.id,
+      auth.deviceHash,
+      objectKey,
+      updatedAtMillis,
+      recordCount,
+      formatVersion,
+      databaseSchemaVersion,
+      raw.byteLength,
+      sha256,
+      contentSha256,
+    ).run();
+  } catch (error) {
+    await env.BACKUPS.delete(objectKey);
+    throw error;
+  }
+
+  if (previous?.object_key && previous.object_key !== objectKey) {
+    try {
+      await env.BACKUPS.delete(previous.object_key);
+    } catch (error) {
+      console.warn("Could not prune previous sync snapshot", error);
+    }
+  }
+
+  const row = await getCloudSyncSnapshot(env, auth.license.id, auth.deviceHash);
+  return json({ ok: true, snapshot: cloudSyncSnapshotJson(row, true) });
+}
+
+async function cloudSyncSnapshotContent(request, env) {
+  const auth = await authenticateCloudRequest(request, env);
+  if (!auth.ok) return auth.response;
+  if (!env.BACKUPS) return json({ ok: false, error: "cloud_storage_not_configured" }, 503);
+
+  const url = new URL(request.url);
+  const deviceHash = cleanString(url.searchParams.get("device_hash"), 64).toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(deviceHash)) return badRequest("device_hash_required");
+
+  const snapshot = await getCloudSyncSnapshot(env, auth.license.id, deviceHash);
+  if (!snapshot || snapshot.status !== "ready") {
+    return json({ ok: false, error: "sync_snapshot_not_found" }, 404);
+  }
+
+  const object = await env.BACKUPS.get(snapshot.object_key);
+  if (!object) {
+    await env.DB.prepare(
+      `UPDATE cloud_sync_snapshots
+          SET status = 'missing', updated_at = CURRENT_TIMESTAMP
+        WHERE license_id = ?1 AND device_hash = ?2`
+    ).bind(auth.license.id, deviceHash).run();
+    return json({ ok: false, error: "sync_snapshot_missing" }, 404);
+  }
+
+  return new Response(object.body, {
+    status: 200,
+    headers: {
+      "content-type": "application/octet-stream",
+      "content-length": String(snapshot.byte_size),
+      "x-homika-device-hash": snapshot.device_hash,
+      "x-homika-sync-sha256": snapshot.sha256,
+      "x-homika-content-sha256": snapshot.content_sha256,
+      "cache-control": "no-store",
+      ...corsHeaders(),
+    },
+  });
+}
+
+async function getCloudSyncSnapshot(env, licenseId, deviceHash) {
+  return env.DB.prepare(
+    `SELECT license_id, device_hash, object_key, updated_at_epoch_millis,
+            record_count, format_version, database_schema_version,
+            byte_size, sha256, content_sha256, status, created_at, updated_at
+       FROM cloud_sync_snapshots
+      WHERE license_id = ?1 AND device_hash = ?2
+      LIMIT 1`
+  ).bind(licenseId, deviceHash).first();
+}
+
+function cloudSyncSnapshotJson(row, isCurrentDevice) {
+  return {
+    device_hash: row.device_hash,
+    updated_at_epoch_millis: Number(row.updated_at_epoch_millis || 0),
+    record_count: Number(row.record_count || 0),
+    format_version: Number(row.format_version || 1),
+    database_schema_version: Number(row.database_schema_version || 1),
+    byte_size: Number(row.byte_size || 0),
+    sha256: row.sha256,
+    content_sha256: row.content_sha256,
+    is_current_device: Boolean(isCurrentDevice),
+  };
+}
 
 const CLOUD_SYNC_PROTOCOL = 1;
 const CLOUD_SYNC_MAX_BATCH = 100;
