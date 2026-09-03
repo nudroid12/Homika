@@ -43,10 +43,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.homiq.app.R
+import com.homiq.app.data.license.LicenseCommercialLinks
 import com.homiq.app.data.license.LicenseDeviceInfo
 import com.homiq.app.data.license.LicensePlanType
 import com.homiq.app.data.license.LicenseUiState
@@ -77,6 +79,8 @@ fun LicenseManagementScreen(
     var pendingRemoveDevice by remember { mutableStateOf<LicenseDeviceInfo?>(null) }
     var verificationRequested by rememberSaveable { mutableStateOf(false) }
     var verificationFeedback by rememberSaveable { mutableStateOf<String?>(null) }
+    val uriHandler = LocalUriHandler.current
+    val daysRemaining = licenseDaysRemaining(state)
 
     LaunchedEffect(Unit) {
         onRefreshDevices()
@@ -196,6 +200,14 @@ fun LicenseManagementScreen(
                         state.expiresAt ?: stringResource(R.string.license_unknown)
                     },
                 )
+                if (state.planType != LicensePlanType.LIFETIME) {
+                    LicenseDivider()
+                    LicenseInfoRow(
+                        icon = Icons.Outlined.Schedule,
+                        label = stringResource(R.string.license_time_remaining),
+                        value = remainingDaysText(daysRemaining),
+                    )
+                }
                 LicenseDivider()
                 LicenseInfoRow(
                     icon = Icons.Outlined.Devices,
@@ -213,6 +225,16 @@ fun LicenseManagementScreen(
                     value = lastVerifiedText(state.lastValidatedAtMillis),
                 )
             }
+        }
+
+        if (state.planType != LicensePlanType.LIFETIME) {
+            RenewalCard(
+                planType = state.planType,
+                daysRemaining = daysRemaining,
+                onRenew = {
+                    runCatching { uriHandler.openUri(LicenseCommercialLinks.RENEW_URL) }
+                },
+            )
         }
 
         DeviceManagementCard(
@@ -349,6 +371,78 @@ fun LicenseManagementScreen(
             },
         )
     }
+}
+
+@Composable
+private fun RenewalCard(
+    planType: LicensePlanType,
+    daysRemaining: Long?,
+    onRenew: () -> Unit,
+) {
+    val urgent = daysRemaining != null && daysRemaining <= 30L
+    val trial = planType == LicensePlanType.TRIAL
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = if (urgent || trial) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = when {
+                    trial -> stringResource(R.string.license_trial_status_title)
+                    urgent -> stringResource(R.string.license_renewal_due_title)
+                    else -> stringResource(R.string.license_renewal_title)
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = when {
+                    trial -> stringResource(R.string.license_trial_status_body)
+                    urgent -> stringResource(R.string.license_renewal_due_body)
+                    else -> stringResource(R.string.license_renewal_body)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+                onClick = onRenew,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    if (trial) {
+                        stringResource(R.string.license_upgrade_online)
+                    } else {
+                        stringResource(R.string.license_renew_online)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun remainingDaysText(daysRemaining: Long?): String =
+    when {
+        daysRemaining == null -> stringResource(R.string.license_unknown)
+        daysRemaining <= 0L -> stringResource(R.string.license_time_remaining_expired)
+        daysRemaining == 1L -> stringResource(R.string.license_time_remaining_one_day)
+        else -> stringResource(R.string.license_time_remaining_days, daysRemaining)
+    }
+
+private fun licenseDaysRemaining(state: LicenseUiState): Long? {
+    if (state.planType == LicensePlanType.LIFETIME || state.expiresAtEpochMillis <= 0L) return null
+    val remainingMillis = state.expiresAtEpochMillis - System.currentTimeMillis()
+    if (remainingMillis <= 0L) return 0L
+    val dayMillis = 24L * 60L * 60L * 1000L
+    return (remainingMillis + dayMillis - 1L) / dayMillis
 }
 
 @Composable

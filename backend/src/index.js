@@ -15,7 +15,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 7,
+          version: 8,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -24,7 +24,13 @@ export default {
           cloud_sync_protocol: 2,
           cloud_sync_mode: "encrypted_device_snapshots",
           device_management: true,
+          commercial_licensing_ux: true,
+          purchase_redirect: true,
         });
+      }
+
+      if (request.method === "GET" && url.pathname === "/buy/homika-pro") {
+        return homikaPurchaseRedirect(url, env);
       }
 
       if (request.method === "GET" && url.pathname === "/v1/plans") {
@@ -99,6 +105,42 @@ export default {
     }
   },
 };
+
+
+function homikaPurchaseRedirect(requestUrl, env) {
+  const configured = cleanString(env.HOMIKA_STORE_URL, 2000);
+  if (configured) {
+    try {
+      const target = new URL(configured);
+      if (target.protocol === "https:" || target.protocol === "http:") {
+        for (const [name, value] of requestUrl.searchParams.entries()) {
+          if (!target.searchParams.has(name)) target.searchParams.set(name, value);
+        }
+        return Response.redirect(target.toString(), 302);
+      }
+    } catch (_) {
+      // Fall through to the safe placeholder page when the configured URL is invalid.
+    }
+  }
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Homika Pro</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f6f6f3;color:#1f2421}main{max-width:560px;margin:0 auto;padding:48px 24px}.card{background:white;border:1px solid #dedfd9;border-radius:22px;padding:28px}h1{margin:0 0 12px;font-size:30px}p{line-height:1.55}.note{color:#5f665f;font-size:14px}</style>
+</head>
+<body><main><div class="card"><h1>Homika Pro</h1><p>Online checkout is being prepared.</p><p>If you have already renewed an existing licence, return to Homika and tap <strong>Verify now</strong>. Renewal keeps the same licence code.</p><p class="note">Your local Homika data is not deleted when a subscription expires.</p></div></main></body>
+</html>`;
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
 
 async function publicPlans(env) {
   const result = await env.DB.prepare(

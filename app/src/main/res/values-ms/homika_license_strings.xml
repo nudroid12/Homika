@@ -2,6 +2,7 @@
 <resources>
     <string name="license_homika_pro">Homika Pro</string>
     <string name="license_annual_label">Akses lesen selamat</string>
+    <string name="license_commercial_subtitle">Langganan dan akses cloud selamat</string>
     <string name="license_checking">Menyemak lesen</string>
     <string name="license_checking_body">Homika sedang mengesahkan peranti ini. Biasanya hanya mengambil masa seketika.</string>
     <string name="license_activate_title">Aktifkan Homika Pro</string>
@@ -14,7 +15,7 @@
     <string name="license_error_network">Pengesahan internet diperlukan</string>
     <string name="license_error_network_body">Sambungkan internet supaya Homika boleh mengesahkan lesen ini. Data perniagaan lokal anda tidak akan dipadam.</string>
     <string name="license_error_expired">Lesen telah tamat</string>
-    <string name="license_error_expired_body">Perbaharui lesen ini untuk terus menggunakan Homika Pro.</string>
+    <string name="license_error_expired_body">Perbaharui lesen ini untuk terus menggunakan Homika Pro. Data Homika lokal anda kekal pada peranti ini.</string>
     <string name="license_error_inactive">Lesen tidak aktif</string>
     <string name="license_error_inactive_body">Lesen ini sedang tidak aktif. Hubungi penjual jika anda rasa ini satu kesilapan.</string>
     <string name="license_error_device_limit">Had peranti telah penuh</string>
@@ -53,6 +54,33 @@
     <string name="license_plan_monthly">Bulanan</string>
     <string name="license_plan_annual">Tahunan</string>
     <string name="license_plan_lifetime">Seumur hidup</string>
+
+    <string name="license_renew_title">Perbaharui Homika Pro</string>
+    <string name="license_renew_body">Langganan anda telah tamat. Perbaharui lesen yang sama, kemudian sahkan di sini untuk membuka semula Homika Pro.</string>
+    <string name="license_device_limit_title">Slot peranti telah penuh</string>
+    <string name="license_device_limit_activation_body">Lesen ini sah, tetapi semua slot peranti sedang digunakan.</string>
+    <string name="license_verify_title">Sahkan Homika Pro</string>
+    <string name="license_verify_activation_body">Homika memerlukan sambungan internet untuk mengesahkan lesen ini sebelum akses boleh diteruskan.</string>
+    <string name="license_annual_primary_title">Tahunan · Pelan awam utama</string>
+    <string name="license_annual_primary_body">Satu lesen tahunan menyokong sehingga %1$d peranti. Akses percubaan atau bulanan boleh dikeluarkan secara berasingan apabila tersedia.</string>
+    <string name="license_buy_online">Beli Homika Pro secara online</string>
+    <string name="license_renew_online">Perbaharui Homika Pro secara online</string>
+    <string name="license_upgrade_online">Naik taraf ke Homika Pro</string>
+    <string name="license_renew_verify_button">Saya sudah renew · Sahkan sekarang</string>
+    <string name="license_renew_same_code_title">Kekalkan kod lesen yang sama</string>
+    <string name="license_renew_same_code_body">Renewal memanjangkan lesen sedia ada. Anda tidak perlukan kod baharu. Selepas bayaran disahkan, tekan Sahkan sekarang.</string>
+    <string name="license_current_code_hint">Lesen semasa: %1$s</string>
+    <string name="license_device_limit_help">Buka Homika pada salah satu peranti yang masih aktif, kemudian pergi ke Lagi → Lesen Homika Pro → Peranti aktif dan buang peranti lama. Selepas itu aktifkan peranti ini menggunakan kod lesen yang sama.</string>
+    <string name="license_time_remaining">Baki tempoh</string>
+    <string name="license_time_remaining_days">%1$d hari</string>
+    <string name="license_time_remaining_one_day">1 hari</string>
+    <string name="license_time_remaining_expired">Tamat</string>
+    <string name="license_renewal_title">Pembaharuan langganan</string>
+    <string name="license_renewal_body">Renewal mengekalkan kod lesen yang sama dan memanjangkan tarikh tamat. Data lokal serta pengaktifan peranti kekal.</string>
+    <string name="license_renewal_due_title">Masa untuk renew semakin dekat</string>
+    <string name="license_renewal_due_body">Lesen ini menghampiri tarikh tamat. Renew lebih awal untuk mengelakkan akses Homika Pro terhenti.</string>
+    <string name="license_trial_status_title">Akses percubaan</string>
+    <string name="license_trial_status_body">Trial anda masih aktif. Naik taraf ke pelan tahunan apabila bersedia untuk terus menggunakan Homika Pro.</string>
 
     <string name="license_device_management_title">Peranti aktif</string>
     <string name="license_device_slots_summary">%1$d daripada %2$d aktif · %3$d slot tersedia</string>

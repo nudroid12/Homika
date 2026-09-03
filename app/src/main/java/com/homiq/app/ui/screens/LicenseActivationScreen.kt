@@ -9,13 +9,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,13 +30,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.homiq.app.R
 import com.homiq.app.data.license.LicenseAccess
+import com.homiq.app.data.license.LicenseCommercialLinks
 import com.homiq.app.data.license.LicenseUiState
 import com.homiq.app.ui.components.HomikaBrandMark
 
@@ -46,6 +49,7 @@ fun LicenseActivationScreen(
     modifier: Modifier = Modifier,
 ) {
     var licenseKey by rememberSaveable { mutableStateOf(state.licenseKey) }
+    val uriHandler = LocalUriHandler.current
 
     LaunchedEffect(state.licenseKey) {
         if (state.licenseKey.isNotBlank() && licenseKey.isBlank()) {
@@ -64,9 +68,7 @@ fun LicenseActivationScreen(
                 .padding(horizontal = 24.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 HomikaBrandMark()
                 Spacer(Modifier.width(12.dp))
                 Column {
@@ -76,7 +78,7 @@ fun LicenseActivationScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = stringResource(R.string.license_annual_label),
+                        text = stringResource(R.string.license_commercial_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -107,19 +109,105 @@ fun LicenseActivationScreen(
                         )
                     }
                 }
-            } else {
+                return@Column
+            }
 
             Text(
-                text = stringResource(R.string.license_activate_title),
+                text = activationHeadline(state.access),
                 style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = stringResource(R.string.license_activate_body),
+                text = activationBody(state.access),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             LicenseStatusCard(state)
+
+            if (state.access == LicenseAccess.EXPIRED) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.license_renew_same_code_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        Text(
+                            text = stringResource(R.string.license_renew_same_code_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        if (state.licenseHint.isNotBlank()) {
+                            Text(
+                                text = stringResource(
+                                    R.string.license_current_code_hint,
+                                    state.licenseHint,
+                                ),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        runCatching { uriHandler.openUri(LicenseCommercialLinks.RENEW_URL) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.license_renew_online))
+                }
+
+                OutlinedButton(
+                    onClick = onRetry,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !state.busy,
+                ) {
+                    if (state.busy) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(stringResource(R.string.license_renew_verify_button))
+                }
+            } else if (
+                state.access == LicenseAccess.ACTIVATION_REQUIRED ||
+                state.access == LicenseAccess.INVALID
+            ) {
+                AnnualOfferCard(state.maxDevices)
+                OutlinedButton(
+                    onClick = {
+                        runCatching { uriHandler.openUri(LicenseCommercialLinks.BUY_URL) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.license_buy_online))
+                }
+            }
+
+            if (state.access == LicenseAccess.DEVICE_LIMIT) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Text(
+                        text = stringResource(R.string.license_device_limit_help),
+                        modifier = Modifier.padding(14.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
             OutlinedTextField(
                 value = licenseKey,
@@ -186,10 +274,53 @@ fun LicenseActivationScreen(
                     )
                 }
             }
-            }
         }
     }
 }
+
+@Composable
+private fun AnnualOfferCard(maxDevices: Int) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.primaryContainer,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.license_annual_primary_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                text = stringResource(R.string.license_annual_primary_body, maxDevices),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun activationHeadline(access: LicenseAccess): String =
+    when (access) {
+        LicenseAccess.EXPIRED -> stringResource(R.string.license_renew_title)
+        LicenseAccess.DEVICE_LIMIT -> stringResource(R.string.license_device_limit_title)
+        LicenseAccess.NEEDS_INTERNET -> stringResource(R.string.license_verify_title)
+        else -> stringResource(R.string.license_activate_title)
+    }
+
+@Composable
+private fun activationBody(access: LicenseAccess): String =
+    when (access) {
+        LicenseAccess.EXPIRED -> stringResource(R.string.license_renew_body)
+        LicenseAccess.DEVICE_LIMIT -> stringResource(R.string.license_device_limit_activation_body)
+        LicenseAccess.NEEDS_INTERNET -> stringResource(R.string.license_verify_activation_body)
+        else -> stringResource(R.string.license_activate_body)
+    }
 
 @Composable
 private fun LicenseStatusCard(state: LicenseUiState) {
@@ -222,6 +353,7 @@ private fun LicenseStatusCard(state: LicenseUiState) {
             Text(
                 text = stringResource(content.first),
                 style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Text(

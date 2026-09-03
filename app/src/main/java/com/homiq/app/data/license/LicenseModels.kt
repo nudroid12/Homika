@@ -29,6 +29,7 @@ data class LicenseUiState(
     val licenseHint: String = "",
     val planType: LicensePlanType = LicensePlanType.ANNUAL,
     val expiresAt: String? = null,
+    val expiresAtEpochMillis: Long = 0L,
     val maxDevices: Int = 3,
     val activeDevices: Int = 0,
     val lastValidatedAtMillis: Long = 0L,

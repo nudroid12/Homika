@@ -2,6 +2,7 @@
 <resources>
     <string name="license_homika_pro">Homika Pro</string>
     <string name="license_annual_label">Secure licence access</string>
+    <string name="license_commercial_subtitle">Subscription and secure cloud access</string>
     <string name="license_checking">Checking licence</string>
     <string name="license_checking_body">Homika is verifying this device. This normally takes only a moment.</string>
     <string name="license_activate_title">Activate Homika Pro</string>
@@ -14,7 +15,7 @@
     <string name="license_error_network">Internet verification required</string>
     <string name="license_error_network_body">Connect to the internet so Homika can verify this licence. Your local business data is not deleted.</string>
     <string name="license_error_expired">Licence expired</string>
-    <string name="license_error_expired_body">Renew this licence to continue using Homika Pro.</string>
+    <string name="license_error_expired_body">Renew this licence to continue using Homika Pro. Your local Homika data remains on this device.</string>
     <string name="license_error_inactive">Licence inactive</string>
     <string name="license_error_inactive_body">This licence is currently inactive. Contact the seller if you believe this is a mistake.</string>
     <string name="license_error_device_limit">Device limit reached</string>
@@ -53,6 +54,33 @@
     <string name="license_plan_monthly">Monthly</string>
     <string name="license_plan_annual">Annual</string>
     <string name="license_plan_lifetime">Lifetime</string>
+
+    <string name="license_renew_title">Renew Homika Pro</string>
+    <string name="license_renew_body">Your subscription has ended. Renew the same licence, then verify it here to unlock Homika Pro again.</string>
+    <string name="license_device_limit_title">Device slots are full</string>
+    <string name="license_device_limit_activation_body">This licence is valid, but all device slots are currently in use.</string>
+    <string name="license_verify_title">Verify Homika Pro</string>
+    <string name="license_verify_activation_body">Homika needs an internet connection to verify this licence before access can continue.</string>
+    <string name="license_annual_primary_title">Annual · Primary public plan</string>
+    <string name="license_annual_primary_body">One annual licence supports up to %1$d devices. Trial or monthly access may be issued separately when available.</string>
+    <string name="license_buy_online">Buy Homika Pro online</string>
+    <string name="license_renew_online">Renew Homika Pro online</string>
+    <string name="license_upgrade_online">Upgrade to Homika Pro</string>
+    <string name="license_renew_verify_button">I have renewed · Verify now</string>
+    <string name="license_renew_same_code_title">Keep the same licence code</string>
+    <string name="license_renew_same_code_body">Renewal extends your existing licence. You do not need a new code. After payment is confirmed, tap Verify now.</string>
+    <string name="license_current_code_hint">Current licence: %1$s</string>
+    <string name="license_device_limit_help">Open Homika on one of your active devices, then go to More → Homika Pro licence → Active devices and remove an old device. You can then activate this device using the same licence code.</string>
+    <string name="license_time_remaining">Time remaining</string>
+    <string name="license_time_remaining_days">%1$d days</string>
+    <string name="license_time_remaining_one_day">1 day</string>
+    <string name="license_time_remaining_expired">Expired</string>
+    <string name="license_renewal_title">Subscription renewal</string>
+    <string name="license_renewal_body">Renewal keeps the same licence code and extends its expiry. Your local data and device activation remain intact.</string>
+    <string name="license_renewal_due_title">Renewal coming up</string>
+    <string name="license_renewal_due_body">This licence is approaching its expiry date. Renew early to avoid an interruption in Homika Pro access.</string>
+    <string name="license_trial_status_title">Trial access</string>
+    <string name="license_trial_status_body">Your trial is active. Upgrade to the annual plan when you are ready to keep Homika Pro active.</string>
 
     <string name="license_device_management_title">Active devices</string>
     <string name="license_device_slots_summary">%1$d of %2$d active · %3$d slot(s) available</string>
