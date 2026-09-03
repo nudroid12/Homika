@@ -213,6 +213,27 @@ class LicenseRepository(
         }
     }
 
+    suspend fun listDevices(): LicenseDevicesResult {
+        val credentials = cloudCredentials()
+            ?: return LicenseDevicesResult.Rejected("license_required")
+        return api.listDevices(
+            activationToken = credentials.activationToken,
+            deviceId = credentials.deviceId,
+        )
+    }
+
+    suspend fun deactivateOtherDevice(
+        targetDeviceHash: String,
+    ): LicenseRemoteDeviceDeactivateResult {
+        val credentials = cloudCredentials()
+            ?: return LicenseRemoteDeviceDeactivateResult.Rejected("license_required")
+        return api.deactivateOtherDevice(
+            activationToken = credentials.activationToken,
+            deviceId = credentials.deviceId,
+            targetDeviceHash = targetDeviceHash,
+        )
+    }
+
     private fun networkState(key: String): LicenseUiState {
         val now = System.currentTimeMillis()
         val stored = preferences.read()

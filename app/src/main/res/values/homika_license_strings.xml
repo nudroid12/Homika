@@ -53,4 +53,26 @@
     <string name="license_plan_monthly">Monthly</string>
     <string name="license_plan_annual">Annual</string>
     <string name="license_plan_lifetime">Lifetime</string>
+
+    <string name="license_device_management_title">Active devices</string>
+    <string name="license_device_slots_summary">%1$d of %2$d active · %3$d slot(s) available</string>
+    <string name="license_refresh_devices">Refresh devices</string>
+    <string name="license_loading_devices">Loading active devices…</string>
+    <string name="license_no_devices">No active devices were returned by the licence server.</string>
+    <string name="license_unknown_device">Android device</string>
+    <string name="license_current_device">Current device · active now</string>
+    <string name="license_this_device">This device</string>
+    <string name="license_device_last_seen">Last seen %1$s</string>
+    <string name="license_remove_device">Remove</string>
+    <string name="license_remove_device_title">Remove this device?</string>
+    <string name="license_remove_device_body">%1$s will lose Homika Pro access and its Cloud Sync snapshot will be removed. Local data on that device is not remotely deleted.</string>
+    <string name="license_remove_device_confirm">Remove device</string>
+    <string name="license_device_removed">Device removed. A licence slot is now available.</string>
+    <string name="license_device_management_note">Removing an old device frees a licence slot. The current device must be deactivated using the button below.</string>
+    <string name="license_devices_error_network">Could not load devices because the licence server is unreachable.</string>
+    <string name="license_devices_error_verify">Verify this licence online, then refresh the device list.</string>
+    <string name="license_devices_error_missing">That device is already inactive or no longer exists.</string>
+    <string name="license_devices_error_current">Use “Deactivate this device” for the current device.</string>
+    <string name="license_devices_error_generic">Could not update the device list. Try again.</string>
+
 </resources>

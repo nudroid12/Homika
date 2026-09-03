@@ -87,6 +87,42 @@ sealed interface LicenseDeactivateResult {
     data object NetworkError : LicenseDeactivateResult
 }
 
+data class LicenseDeviceInfo(
+    val deviceHash: String,
+    val deviceName: String,
+    val activatedAt: String,
+    val lastSeenAt: String,
+    val isCurrentDevice: Boolean,
+)
+
+sealed interface LicenseDevicesResult {
+    data class Success(
+        val maxDevices: Int,
+        val activeDevices: Int,
+        val devices: List<LicenseDeviceInfo>,
+    ) : LicenseDevicesResult
+
+    data class Rejected(
+        val code: String,
+    ) : LicenseDevicesResult
+
+    data object NetworkError : LicenseDevicesResult
+}
+
+sealed interface LicenseRemoteDeviceDeactivateResult {
+    data class Success(
+        val deviceHash: String,
+        val maxDevices: Int,
+        val activeDevices: Int,
+    ) : LicenseRemoteDeviceDeactivateResult
+
+    data class Rejected(
+        val code: String,
+    ) : LicenseRemoteDeviceDeactivateResult
+
+    data object NetworkError : LicenseRemoteDeviceDeactivateResult
+}
+
 data class VerifiedActivationToken(
     val licenseId: String,
     val planType: LicensePlanType,

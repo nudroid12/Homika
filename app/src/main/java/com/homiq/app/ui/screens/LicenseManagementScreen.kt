@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.AlertDialog
@@ -41,13 +42,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.homiq.app.R
+import com.homiq.app.data.license.LicenseDeviceInfo
 import com.homiq.app.data.license.LicensePlanType
 import com.homiq.app.data.license.LicenseUiState
+import com.homiq.app.ui.viewmodel.LicenseDeviceUiState
 import java.text.DateFormat
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Date
 
 private const val VERIFY_FEEDBACK_SUCCESS = "success"
@@ -57,14 +65,22 @@ private const val VERIFY_FEEDBACK_FAILED = "failed"
 @Composable
 fun LicenseManagementScreen(
     state: LicenseUiState,
+    deviceState: LicenseDeviceUiState,
     onRefresh: () -> Unit,
+    onRefreshDevices: () -> Unit,
+    onDeactivateOtherDevice: (String) -> Unit,
     onDeactivate: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmDeactivate by rememberSaveable { mutableStateOf(false) }
+    var pendingRemoveDevice by remember { mutableStateOf<LicenseDeviceInfo?>(null) }
     var verificationRequested by rememberSaveable { mutableStateOf(false) }
     var verificationFeedback by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        onRefreshDevices()
+    }
 
     LaunchedEffect(
         state.busy,
@@ -94,9 +110,7 @@ fun LicenseManagementScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = Icons.Outlined.ArrowBack,
@@ -120,7 +134,7 @@ fun LicenseManagementScreen(
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.primaryContainer,
         ) {
             Row(
@@ -158,10 +172,7 @@ fun LicenseManagementScreen(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.65f),
-            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)),
         ) {
             Column {
                 LicenseInfoRow(
@@ -169,19 +180,13 @@ fun LicenseManagementScreen(
                     label = stringResource(R.string.license_code),
                     value = state.licenseHint.ifBlank { "••••" },
                 )
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 52.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                )
+                LicenseDivider()
                 LicenseInfoRow(
                     icon = Icons.Outlined.VerifiedUser,
                     label = stringResource(R.string.license_plan),
                     value = licensePlanLabel(state.planType),
                 )
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 52.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                )
+                LicenseDivider()
                 LicenseInfoRow(
                     icon = Icons.Outlined.Event,
                     label = stringResource(R.string.license_expires),
@@ -191,10 +196,7 @@ fun LicenseManagementScreen(
                         state.expiresAt ?: stringResource(R.string.license_unknown)
                     },
                 )
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 52.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                )
+                LicenseDivider()
                 LicenseInfoRow(
                     icon = Icons.Outlined.Devices,
                     label = stringResource(R.string.license_devices),
@@ -204,10 +206,7 @@ fun LicenseManagementScreen(
                         state.maxDevices,
                     ),
                 )
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 52.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                )
+                LicenseDivider()
                 LicenseInfoRow(
                     icon = Icons.Outlined.Schedule,
                     label = stringResource(R.string.license_last_verified),
@@ -215,6 +214,12 @@ fun LicenseManagementScreen(
                 )
             }
         }
+
+        DeviceManagementCard(
+            state = deviceState,
+            onRefresh = onRefreshDevices,
+            onRemove = { pendingRemoveDevice = it },
+        )
 
         if (state.errorCode == "deactivate_network") {
             Text(
@@ -235,32 +240,20 @@ fun LicenseManagementScreen(
                     MaterialTheme.colorScheme.errorContainer
                 },
             ) {
-                Row(
+                Text(
+                    text = when (feedback) {
+                        VERIFY_FEEDBACK_SUCCESS -> stringResource(R.string.license_verify_success)
+                        VERIFY_FEEDBACK_OFFLINE -> stringResource(R.string.license_verify_offline)
+                        else -> stringResource(R.string.license_verify_failed)
+                    },
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    if (success) {
-                        Icon(
-                            imageVector = Icons.Outlined.CheckCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
-                    Text(
-                        text = when (feedback) {
-                            VERIFY_FEEDBACK_SUCCESS -> stringResource(R.string.license_verify_success)
-                            VERIFY_FEEDBACK_OFFLINE -> stringResource(R.string.license_verify_offline)
-                            else -> stringResource(R.string.license_verify_failed)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (success) {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        },
-                    )
-                }
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (success) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    },
+                )
             }
         }
 
@@ -304,12 +297,8 @@ fun LicenseManagementScreen(
     if (confirmDeactivate) {
         AlertDialog(
             onDismissRequest = { confirmDeactivate = false },
-            title = {
-                Text(stringResource(R.string.license_deactivate_confirm_title))
-            },
-            text = {
-                Text(stringResource(R.string.license_deactivate_confirm_body))
-            },
+            title = { Text(stringResource(R.string.license_deactivate_confirm_title)) },
+            text = { Text(stringResource(R.string.license_deactivate_confirm_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -327,7 +316,210 @@ fun LicenseManagementScreen(
             },
         )
     }
+
+    pendingRemoveDevice?.let { device ->
+        val removeDeviceName = device.deviceName.ifBlank {
+            stringResource(R.string.license_unknown_device)
+        }
+        AlertDialog(
+            onDismissRequest = { pendingRemoveDevice = null },
+            title = { Text(stringResource(R.string.license_remove_device_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.license_remove_device_body,
+                        removeDeviceName,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingRemoveDevice = null
+                        onDeactivateOtherDevice(device.deviceHash)
+                    },
+                ) {
+                    Text(stringResource(R.string.license_remove_device_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoveDevice = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 }
+
+@Composable
+private fun DeviceManagementCard(
+    state: LicenseDeviceUiState,
+    onRefresh: () -> Unit,
+    onRemove: (LicenseDeviceInfo) -> Unit,
+) {
+    val availableSlots = (state.maxDevices - state.activeDevices).coerceAtLeast(0)
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.license_device_management_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.license_device_slots_summary,
+                            state.activeDevices,
+                            state.maxDevices,
+                            availableSlots,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(
+                    onClick = onRefresh,
+                    enabled = !state.loading && state.busyDeviceHash == null,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Refresh,
+                        contentDescription = stringResource(R.string.license_refresh_devices),
+                    )
+                }
+            }
+
+            if (state.loading) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text(
+                        text = stringResource(R.string.license_loading_devices),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            } else if (state.devices.isEmpty() && state.errorCode == null) {
+                Text(
+                    text = stringResource(R.string.license_no_devices),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                state.devices.forEachIndexed { index, device ->
+                    if (index > 0) HorizontalDivider()
+                    DeviceRow(
+                        device = device,
+                        busy = state.busyDeviceHash == device.deviceHash,
+                        onRemove = { onRemove(device) },
+                    )
+                }
+            }
+
+            state.feedbackCode?.let {
+                Text(
+                    text = stringResource(R.string.license_device_removed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            state.errorCode?.let { code ->
+                Text(
+                    text = deviceErrorText(code),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            Text(
+                text = stringResource(R.string.license_device_management_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeviceRow(
+    device: LicenseDeviceInfo,
+    busy: Boolean,
+    onRemove: () -> Unit,
+) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Devices,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = device.deviceName.ifBlank { stringResource(R.string.license_unknown_device) },
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = if (device.isCurrentDevice) {
+                    stringResource(R.string.license_current_device)
+                } else {
+                    stringResource(
+                        R.string.license_device_last_seen,
+                        formatServerDateTime(context, device.lastSeenAt),
+                    )
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (device.isCurrentDevice) {
+            Text(
+                text = stringResource(R.string.license_this_device),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            TextButton(onClick = onRemove, enabled = !busy) {
+                if (busy) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(stringResource(R.string.license_remove_device))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun deviceErrorText(code: String): String =
+    when (code) {
+        "devices_network" -> stringResource(R.string.license_devices_error_network)
+        "license_required", "invalid_activation_token", "token_device_mismatch" ->
+            stringResource(R.string.license_devices_error_verify)
+        "device_not_activated" -> stringResource(R.string.license_devices_error_missing)
+        "current_device_use_self_deactivate" -> stringResource(R.string.license_devices_error_current)
+        else -> stringResource(R.string.license_devices_error_generic)
+    }
 
 @Composable
 private fun licensePlanLabel(planType: LicensePlanType): String =
@@ -340,15 +532,10 @@ private fun licensePlanLabel(planType: LicensePlanType): String =
 
 @Composable
 private fun lastVerifiedText(lastValidatedAtMillis: Long): String {
-    if (lastValidatedAtMillis <= 0L) {
-        return stringResource(R.string.license_never_verified)
-    }
-
+    if (lastValidatedAtMillis <= 0L) return stringResource(R.string.license_never_verified)
     return remember(lastValidatedAtMillis) {
-        DateFormat.getDateTimeInstance(
-            DateFormat.MEDIUM,
-            DateFormat.SHORT,
-        ).format(Date(lastValidatedAtMillis))
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+            .format(Date(lastValidatedAtMillis))
     }
 }
 
@@ -359,9 +546,7 @@ private fun LicenseInfoRow(
     value: String,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -384,4 +569,31 @@ private fun LicenseInfoRow(
             )
         }
     }
+}
+
+@Composable
+private fun LicenseDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 52.dp),
+        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+    )
+}
+
+private fun formatServerDateTime(
+    context: android.content.Context,
+    raw: String,
+): String {
+    val epochMillis = runCatching {
+        OffsetDateTime.parse(raw).toInstant().toEpochMilli()
+    }.getOrNull() ?: runCatching {
+        LocalDateTime.parse(raw, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+            .toInstant(ZoneOffset.UTC)
+            .toEpochMilli()
+    }.getOrNull()
+
+    if (epochMillis == null) return raw.ifBlank { "—" }
+    val date = Date(epochMillis)
+    val dateText = android.text.format.DateFormat.getMediumDateFormat(context).format(date)
+    val timeText = android.text.format.DateFormat.getTimeFormat(context).format(date)
+    return "$dateText $timeText"
 }

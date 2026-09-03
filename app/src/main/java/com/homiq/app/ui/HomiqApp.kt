@@ -125,6 +125,7 @@ fun HomiqApp() {
 
     val licenseViewModel: LicenseViewModel = viewModel(factory = factory)
     val licenseState by licenseViewModel.state.collectAsStateWithLifecycle()
+    val licenseDeviceState by licenseViewModel.deviceState.collectAsStateWithLifecycle()
     if (licenseState.access != LicenseAccess.ACTIVE) {
         LicenseActivationScreen(
             state = licenseState,
@@ -374,7 +375,10 @@ fun HomiqApp() {
                 HomiqRoute.SECURITY -> SecurityScreen(viewModel = appLockViewModel, modifier = Modifier.padding(innerPadding))
                 HomiqRoute.LICENSE -> LicenseManagementScreen(
                     state = licenseState,
+                    deviceState = licenseDeviceState,
                     onRefresh = licenseViewModel::refreshNow,
+                    onRefreshDevices = licenseViewModel::refreshDevices,
+                    onDeactivateOtherDevice = licenseViewModel::deactivateOtherDevice,
                     onDeactivate = licenseViewModel::deactivate,
                     onBack = { goMain(HomiqDestination.More) },
                     modifier = Modifier.padding(innerPadding),

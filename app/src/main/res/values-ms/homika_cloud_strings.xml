@@ -33,4 +33,27 @@
     <string name="cloud_error_invalid">Backup cloud yang dimuat turun tidak dapat dinyahsulit atau tidak sah.</string>
     <string name="cloud_error_rejected">Permintaan Homika Cloud ditolak oleh server.</string>
     <string name="cloud_error_server">Homika Cloud mengalami ralat server. Cuba semula sebentar lagi.</string>
+
+    <string name="cloud_sync_title">Homika Cloud Sync</string>
+    <string name="cloud_sync_body">Menyelaraskan data Homika antara peranti berlesen aktif semasa aplikasi dibuka.</string>
+    <string name="cloud_sync_status">Status sync</string>
+    <string name="cloud_sync_status_syncing">Sedang sync…</string>
+    <string name="cloud_sync_status_synced">Telah sync</string>
+    <string name="cloud_sync_status_ready">Sedia untuk sync</string>
+    <string name="cloud_sync_last_sync">Sync terakhir</string>
+    <string name="cloud_sync_devices">Peranti dikesan dalam sync</string>
+    <string name="cloud_sync_devices_value">%1$d peranti</string>
+    <string name="cloud_sync_now">Sync sekarang</string>
+    <string name="cloud_sync_foreground_note">Sync hanya berjalan ketika Homika berada di foreground. Tiada polling di background.</string>
+    <string name="cloud_sync_attention">Sync terakhir menyelesaikan %1$d konflik dan mengabaikan %2$d snapshot tidak sah. Homika akan cuba snapshot itu semula pada sync seterusnya.</string>
+    <string name="cloud_sync_error_license">Pengesahan lesen diperlukan sebelum cloud sync boleh diteruskan.</string>
+    <string name="cloud_sync_error_network">Offline atau Homika Cloud tidak dapat dicapai. Data lokal selamat dan sync akan dicuba semula kemudian.</string>
+    <string name="cloud_sync_error_not_configured">Cloud Sync belum dikonfigurasi pada server.</string>
+    <string name="cloud_sync_error_invalid">Satu snapshot cloud tidak dapat disahkan. Ia tidak digunakan pada database lokal.</string>
+    <string name="cloud_sync_error_too_large">Snapshot sync semasa melebihi had saiz server.</string>
+    <string name="cloud_sync_error_rejected">Permintaan sync ditolak server. Sahkan lesen dan cuba lagi.</string>
+    <string name="cloud_sync_error_server">Homika Cloud mengalami ralat server. Sync akan dicuba semula apabila Homika dibuka.</string>
+    <string name="cloud_backup_restore_warning">Restore pemulihan akan menggantikan database lokal semasa pada peranti ini dengan backup yang dipilih.</string>
+    <string name="cloud_sync_backup_distinction">Cloud Sync memastikan peranti aktif sentiasa selaras. Cloud Backup ialah salinan pemulihan terenkripsi yang berasingan, bukan enjin live sync.</string>
+
 </resources>

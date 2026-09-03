@@ -53,4 +53,26 @@
     <string name="license_plan_monthly">Bulanan</string>
     <string name="license_plan_annual">Tahunan</string>
     <string name="license_plan_lifetime">Seumur hidup</string>
+
+    <string name="license_device_management_title">Peranti aktif</string>
+    <string name="license_device_slots_summary">%1$d daripada %2$d aktif · %3$d slot tersedia</string>
+    <string name="license_refresh_devices">Muat semula peranti</string>
+    <string name="license_loading_devices">Sedang memuatkan peranti aktif…</string>
+    <string name="license_no_devices">Tiada peranti aktif diterima daripada pelayan lesen.</string>
+    <string name="license_unknown_device">Peranti Android</string>
+    <string name="license_current_device">Peranti semasa · aktif sekarang</string>
+    <string name="license_this_device">Peranti ini</string>
+    <string name="license_device_last_seen">Terakhir aktif %1$s</string>
+    <string name="license_remove_device">Buang</string>
+    <string name="license_remove_device_title">Buang peranti ini?</string>
+    <string name="license_remove_device_body">%1$s akan kehilangan akses Homika Pro dan snapshot Cloud Sync peranti itu akan dibuang. Data lokal pada peranti tersebut tidak dipadam dari jauh.</string>
+    <string name="license_remove_device_confirm">Buang peranti</string>
+    <string name="license_device_removed">Peranti telah dibuang. Satu slot lesen kini tersedia.</string>
+    <string name="license_device_management_note">Membuang peranti lama akan mengosongkan slot lesen. Untuk peranti semasa, gunakan butang nyahaktif di bawah.</string>
+    <string name="license_devices_error_network">Senarai peranti tidak dapat dimuat kerana pelayan lesen tidak dapat dicapai.</string>
+    <string name="license_devices_error_verify">Sahkan lesen ini secara online, kemudian muat semula senarai peranti.</string>
+    <string name="license_devices_error_missing">Peranti itu sudah tidak aktif atau tidak lagi wujud.</string>
+    <string name="license_devices_error_current">Gunakan “Nyahaktifkan peranti ini” untuk peranti semasa.</string>
+    <string name="license_devices_error_generic">Senarai peranti tidak dapat dikemas kini. Cuba lagi.</string>
+
 </resources>

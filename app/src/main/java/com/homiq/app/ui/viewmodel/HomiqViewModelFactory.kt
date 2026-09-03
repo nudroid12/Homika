@@ -189,6 +189,8 @@ class HomiqViewModelFactory(
                         container.cloudBackupService,
                     autoBackupCoordinator =
                         container.cloudAutoBackupCoordinator,
+                    cloudSyncCoordinator =
+                        container.cloudSnapshotSyncCoordinator,
                 ) as T
 
             else -> error(

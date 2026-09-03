@@ -33,4 +33,27 @@
     <string name="cloud_error_invalid">The downloaded cloud backup could not be decrypted or is invalid.</string>
     <string name="cloud_error_rejected">The Homika Cloud request was rejected by the server.</string>
     <string name="cloud_error_server">Homika Cloud returned a server error. Try again shortly.</string>
+
+    <string name="cloud_sync_title">Homika Cloud Sync</string>
+    <string name="cloud_sync_body">Keeps Homika data aligned across active licensed devices while the app is open.</string>
+    <string name="cloud_sync_status">Sync status</string>
+    <string name="cloud_sync_status_syncing">Syncing now…</string>
+    <string name="cloud_sync_status_synced">Synced</string>
+    <string name="cloud_sync_status_ready">Ready to sync</string>
+    <string name="cloud_sync_last_sync">Last synced</string>
+    <string name="cloud_sync_devices">Devices seen in sync</string>
+    <string name="cloud_sync_devices_value">%1$d device(s)</string>
+    <string name="cloud_sync_now">Sync now</string>
+    <string name="cloud_sync_foreground_note">Sync runs only while Homika is in the foreground. No background polling is used.</string>
+    <string name="cloud_sync_attention">Last sync resolved %1$d conflict(s) and ignored %2$d invalid snapshot(s). Homika will retry ignored snapshots on a later sync.</string>
+    <string name="cloud_sync_error_license">Licence verification is required before cloud sync can continue.</string>
+    <string name="cloud_sync_error_network">Offline or Homika Cloud is unreachable. Your local data is safe and sync will retry later.</string>
+    <string name="cloud_sync_error_not_configured">Cloud Sync is not configured on the server.</string>
+    <string name="cloud_sync_error_invalid">A cloud snapshot could not be verified. It was not applied to your local database.</string>
+    <string name="cloud_sync_error_too_large">The current sync snapshot is larger than the server limit.</string>
+    <string name="cloud_sync_error_rejected">The server rejected the sync request. Verify your licence and try again.</string>
+    <string name="cloud_sync_error_server">Homika Cloud returned a server error. Sync will retry when Homika is open.</string>
+    <string name="cloud_backup_restore_warning">Recovery restore replaces the current local database on this device with the selected backup.</string>
+    <string name="cloud_sync_backup_distinction">Cloud Sync keeps active devices current. Cloud Backup is a separate encrypted recovery copy and is not the live-sync engine.</string>
+
 </resources>

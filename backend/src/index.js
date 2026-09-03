@@ -15,7 +15,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 6,
+          version: 7,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -23,6 +23,7 @@ export default {
           cloud_sync: true,
           cloud_sync_protocol: 2,
           cloud_sync_mode: "encrypted_device_snapshots",
+          device_management: true,
         });
       }
 
@@ -40,6 +41,14 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/v1/licenses/deactivate") {
         return deactivateDevice(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/licenses/devices") {
+        return listLicenseDevices(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/licenses/devices/deactivate") {
+        return deactivateLicenseDevice(request, env);
       }
 
       if (request.method === "GET" && url.pathname === "/v1/cloud/key") {
@@ -286,12 +295,109 @@ async function deactivateDevice(request, env) {
     return json({ ok: false, error: "device_not_activated" }, 404);
   }
 
+  await removeDeviceSyncSnapshot(env, license.id, deviceHash);
+
   return json({
     ok: true,
     status: "deactivated",
     max_devices: Number(license.max_devices),
     active_devices: await countActiveDevices(env, license.id),
   });
+}
+
+async function listLicenseDevices(request, env) {
+  const auth = await authenticateCloudRequest(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await env.DB.prepare(
+    `SELECT device_hash, device_name, status, activated_at, last_seen_at
+       FROM devices
+      WHERE license_id = ?1
+        AND status = 'active'
+      ORDER BY CASE WHEN device_hash = ?2 THEN 0 ELSE 1 END, last_seen_at DESC`
+  ).bind(auth.license.id, auth.deviceHash).all();
+
+  const devices = (result.results || []).map((row) => ({
+    device_hash: row.device_hash,
+    device_name: row.device_name || null,
+    status: row.status,
+    activated_at: row.activated_at,
+    last_seen_at: row.last_seen_at,
+    is_current_device: row.device_hash === auth.deviceHash,
+  }));
+
+  return json({
+    ok: true,
+    max_devices: Number(auth.license.max_devices),
+    active_devices: devices.length,
+    devices,
+  });
+}
+
+async function deactivateLicenseDevice(request, env) {
+  const auth = await authenticateCloudRequest(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+
+  const targetDeviceHash = cleanString(body.device_hash, 64).toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(targetDeviceHash)) {
+    return badRequest("device_hash_required");
+  }
+  if (targetDeviceHash === auth.deviceHash) {
+    return json({ ok: false, error: "current_device_use_self_deactivate" }, 400);
+  }
+
+  const result = await env.DB.prepare(
+    `UPDATE devices
+        SET status = 'inactive',
+            deactivated_at = CURRENT_TIMESTAMP,
+            last_seen_at = CURRENT_TIMESTAMP
+      WHERE license_id = ?1
+        AND device_hash = ?2
+        AND status = 'active'`
+  ).bind(auth.license.id, targetDeviceHash).run();
+
+  if (!result.meta?.changes) {
+    return json({ ok: false, error: "device_not_activated" }, 404);
+  }
+
+  await removeDeviceSyncSnapshot(env, auth.license.id, targetDeviceHash);
+
+  return json({
+    ok: true,
+    status: "deactivated",
+    device_hash: targetDeviceHash,
+    max_devices: Number(auth.license.max_devices),
+    active_devices: await countActiveDevices(env, auth.license.id),
+  });
+}
+
+async function removeDeviceSyncSnapshot(env, licenseId, deviceHash) {
+  try {
+    const row = await env.DB.prepare(
+      `SELECT object_key
+         FROM cloud_sync_snapshots
+        WHERE license_id = ?1 AND device_hash = ?2`
+    ).bind(licenseId, deviceHash).first();
+
+    await env.DB.prepare(
+      `DELETE FROM cloud_sync_snapshots
+        WHERE license_id = ?1 AND device_hash = ?2`
+    ).bind(licenseId, deviceHash).run();
+
+    if (row?.object_key && env.BACKUPS) {
+      try {
+        await env.BACKUPS.delete(row.object_key);
+      } catch (err) {
+        console.warn("Could not delete deactivated device sync object", err);
+      }
+    }
+  } catch (err) {
+    // Device deactivation must not fail just because optional cloud-sync cleanup failed.
+    console.warn("Could not clean deactivated device sync snapshot", err);
+  }
 }
 
 async function licenseStatus(request, env) {

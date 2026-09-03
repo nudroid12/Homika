@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,6 +40,7 @@ import com.homiq.app.data.backup.BackupDestination
 import com.homiq.app.data.backup.BackupFailureReason
 import com.homiq.app.data.backup.BackupPreview
 import com.homiq.app.data.cloud.CloudBackupFailureReason
+import com.homiq.app.data.cloud.CloudSnapshotSyncFailureReason
 import com.homiq.app.ui.viewmodel.BackupUiMessage
 import com.homiq.app.ui.viewmodel.BackupViewModel
 import java.util.Date
@@ -83,6 +86,101 @@ fun BackupScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 2.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Sync,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.cloud_sync_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.cloud_sync_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                val syncStatus = when {
+                    state.cloudSyncRunning -> stringResource(R.string.cloud_sync_status_syncing)
+                    state.cloudSyncFailure != null -> cloudSyncFailureText(state.cloudSyncFailure!!)
+                    state.cloudSyncLastSuccessEpochMillis != null -> stringResource(R.string.cloud_sync_status_synced)
+                    else -> stringResource(R.string.cloud_sync_status_ready)
+                }
+                HistoryRow(
+                    label = stringResource(R.string.cloud_sync_status),
+                    value = syncStatus,
+                )
+                HistoryRow(
+                    label = stringResource(R.string.cloud_sync_last_sync),
+                    value = state.cloudSyncLastSuccessEpochMillis
+                        ?.let { formatDateTime(context, it) }
+                        ?: stringResource(R.string.never),
+                )
+                HistoryRow(
+                    label = stringResource(R.string.cloud_sync_devices),
+                    value = stringResource(
+                        R.string.cloud_sync_devices_value,
+                        state.cloudSyncRemoteDeviceCount + 1,
+                    ),
+                )
+
+                if (state.cloudSyncConflictCount > 0 || state.cloudSyncIgnoredSnapshotCount > 0) {
+                    Text(
+                        text = stringResource(
+                            R.string.cloud_sync_attention,
+                            state.cloudSyncConflictCount,
+                            state.cloudSyncIgnoredSnapshotCount,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+
+                Button(
+                    onClick = viewModel::syncNow,
+                    enabled = !state.cloudSyncRunning,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (state.cloudSyncRunning) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(Icons.Outlined.Sync, contentDescription = null)
+                    }
+                    Text(
+                        text = stringResource(R.string.cloud_sync_now),
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+
+                Text(
+                    text = stringResource(R.string.cloud_sync_foreground_note),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -184,6 +282,12 @@ fun BackupScreen(
                     )
                 }
 
+                Text(
+                    text = stringResource(R.string.cloud_backup_restore_warning),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
                 OutlinedButton(
                     onClick = viewModel::inspectCloudRestore,
                     enabled = !state.isBusy && state.cloudLatest != null,
@@ -202,7 +306,7 @@ fun BackupScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = stringResource(R.string.cloud_phase_two_note),
+                    text = stringResource(R.string.cloud_sync_backup_distinction),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -481,6 +585,20 @@ private fun formatDateTime(
     val timeText = DateFormat.getTimeFormat(context).format(date)
     return "$dateText $timeText"
 }
+
+@Composable
+private fun cloudSyncFailureText(reason: CloudSnapshotSyncFailureReason): String =
+    stringResource(
+        when (reason) {
+            CloudSnapshotSyncFailureReason.LICENSE_REQUIRED -> R.string.cloud_sync_error_license
+            CloudSnapshotSyncFailureReason.NETWORK_UNAVAILABLE -> R.string.cloud_sync_error_network
+            CloudSnapshotSyncFailureReason.CLOUD_NOT_CONFIGURED -> R.string.cloud_sync_error_not_configured
+            CloudSnapshotSyncFailureReason.INVALID_REMOTE_SNAPSHOT -> R.string.cloud_sync_error_invalid
+            CloudSnapshotSyncFailureReason.SNAPSHOT_TOO_LARGE -> R.string.cloud_sync_error_too_large
+            CloudSnapshotSyncFailureReason.SERVER_REJECTED -> R.string.cloud_sync_error_rejected
+            CloudSnapshotSyncFailureReason.SERVER_ERROR -> R.string.cloud_sync_error_server
+        },
+    )
 
 private fun formatBytes(bytes: Long): String =
     when {

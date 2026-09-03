@@ -15,6 +15,8 @@ import com.homiq.app.data.backup.HomiqBackupService
 import com.homiq.app.data.cloud.CloudAutoBackupCoordinator
 import com.homiq.app.data.cloud.CloudBackupFailureReason
 import com.homiq.app.data.cloud.CloudBackupMetadata
+import com.homiq.app.data.cloud.CloudSnapshotSyncCoordinator
+import com.homiq.app.data.cloud.CloudSnapshotSyncFailureReason
 import com.homiq.app.data.cloud.HomikaCloudBackupService
 import com.homiq.app.data.cloud.PreparedCloudRestore
 import java.time.LocalDateTime
@@ -40,6 +42,12 @@ data class BackupUiState(
     val automaticCloudBackupPending: Boolean = false,
     val automaticCloudBackupRunning: Boolean = false,
     val lastAutomaticCloudBackupEpochMillis: Long? = null,
+    val cloudSyncRunning: Boolean = false,
+    val cloudSyncLastSuccessEpochMillis: Long? = null,
+    val cloudSyncFailure: CloudSnapshotSyncFailureReason? = null,
+    val cloudSyncRemoteDeviceCount: Int = 0,
+    val cloudSyncConflictCount: Int = 0,
+    val cloudSyncIgnoredSnapshotCount: Int = 0,
     val pendingRestorePreview: BackupPreview? = null,
     val message: BackupUiMessage? = null,
 )
@@ -72,6 +80,7 @@ class BackupViewModel(
     private val backupPreferences: BackupPreferences,
     private val cloudService: HomikaCloudBackupService,
     private val autoBackupCoordinator: CloudAutoBackupCoordinator,
+    private val cloudSyncCoordinator: CloudSnapshotSyncCoordinator,
 ) : ViewModel() {
     private var pendingFileRestoreUri: Uri? = null
     private var pendingCloudRestore: PreparedCloudRestore? = null
@@ -94,6 +103,21 @@ class BackupViewModel(
 
     init {
         refreshCloud()
+        viewModelScope.launch {
+            cloudSyncCoordinator.state.collect { syncState ->
+                mutableState.value = mutableState.value.copy(
+                    cloudSyncRunning = syncState.isRunning,
+                    cloudSyncLastSuccessEpochMillis = syncState.lastSuccessEpochMillis,
+                    cloudSyncFailure = syncState.lastFailure,
+                    cloudSyncRemoteDeviceCount = syncState.lastSummary?.remoteDeviceCount
+                        ?: mutableState.value.cloudSyncRemoteDeviceCount,
+                    cloudSyncConflictCount = syncState.lastSummary?.conflictCount
+                        ?: mutableState.value.cloudSyncConflictCount,
+                    cloudSyncIgnoredSnapshotCount = syncState.lastSummary?.ignoredSnapshotCount
+                        ?: mutableState.value.cloudSyncIgnoredSnapshotCount,
+                )
+            }
+        }
         viewModelScope.launch {
             autoBackupCoordinator.state.collect { autoState ->
                 val previousAutoSuccess = mutableState.value.lastAutomaticCloudBackupEpochMillis
@@ -130,6 +154,10 @@ class BackupViewModel(
                 cloudLatest = if (result.isSuccess) result.value else mutableState.value.cloudLatest,
             )
         }
+    }
+
+    fun syncNow() {
+        cloudSyncCoordinator.syncNow()
     }
 
     fun createCloudBackup() {
