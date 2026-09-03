@@ -5,8 +5,8 @@
     <string name="license_commercial_subtitle">Subscription and secure cloud access</string>
     <string name="license_checking">Checking licence</string>
     <string name="license_checking_body">Homika is verifying this device. This normally takes only a moment.</string>
-    <string name="license_activate_title">Activate Homika Pro</string>
-    <string name="license_activate_body">Enter the licence code issued with your Homika Pro purchase.</string>
+    <string name="license_activate_title">Start Homika Pro</string>
+    <string name="license_activate_body">Try Homika Pro free for 7 days, choose a paid plan, or activate a licence you already have.</string>
     <string name="license_code">Licence</string>
     <string name="license_activate_button">Activate licence</string>
     <string name="license_retry">Try verification again</string>
@@ -63,7 +63,9 @@
     <string name="license_verify_activation_body">Homika needs an internet connection to verify this licence before access can continue.</string>
     <string name="license_annual_primary_title">Flexible plans · 1 month to 1 year</string>
     <string name="license_annual_primary_body">Choose the term that suits you. Every paid plan supports up to %1$d devices with the same Homika Pro features.</string>
-    <string name="license_buy_online">Buy Homika Pro online</string>
+    <string name="license_buy_online">View Homika Pro plans</string>
+    <string name="license_existing_title">Already have a licence?</string>
+    <string name="license_existing_body">Enter your Homika Pro licence code below to activate this device.</string>
     <string name="license_renew_online">Renew Homika Pro online</string>
     <string name="license_upgrade_online">Upgrade to Homika Pro</string>
     <string name="license_renew_verify_button">I have renewed · Verify now</string>
@@ -118,6 +120,11 @@
     <string name="license_trial_error_used_body">The previous trial for this device and email has ended. Choose a paid plan to continue.</string>
     <string name="license_trial_error_unavailable_title">Trial temporarily unavailable</string>
     <string name="license_trial_error_unavailable_body">The trial service is not ready right now. You can still activate a paid licence.</string>
-    <string name="license_trial_error_network_body">Connect to the internet to start the free trial.</string>
+    <string name="license_trial_error_network_title">Could not reach Homika</string>
+    <string name="license_trial_error_network_body">Homika could not contact the trial server. Check your connection and try again.</string>
+    <string name="license_trial_error_server_title">Trial server error</string>
+    <string name="license_trial_error_server_body">The internet connection is available, but the Homika trial service could not complete the request. Try again in a moment.</string>
+    <string name="license_trial_error_setup_title">Trial temporarily unavailable</string>
+    <string name="license_trial_error_setup_body">The Homika trial service still needs a server setup step. Paid licence activation is not affected.</string>
 
 </resources>

@@ -19,6 +19,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -68,8 +69,8 @@ fun LicenseActivationScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HomikaBrandMark()
@@ -186,6 +187,13 @@ fun LicenseActivationScreen(
                 state.access == LicenseAccess.ACTIVATION_REQUIRED ||
                 state.access == LicenseAccess.INVALID
             ) {
+                TrialOfferCard(
+                    email = trialEmail,
+                    busy = state.busy,
+                    onEmailChange = { trialEmail = it.take(254) },
+                    onClaim = { onClaimTrial(trialEmail) },
+                )
+
                 AnnualOfferCard(state.maxDevices)
                 OutlinedButton(
                     onClick = {
@@ -196,12 +204,18 @@ fun LicenseActivationScreen(
                     Text(stringResource(R.string.license_buy_online))
                 }
 
-                TrialOfferCard(
-                    email = trialEmail,
-                    busy = state.busy,
-                    onEmailChange = { trialEmail = it.take(254) },
-                    onClaim = { onClaimTrial(trialEmail) },
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.license_existing_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.license_existing_body),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             if (state.access == LicenseAccess.DEVICE_LIMIT) {
@@ -261,27 +275,32 @@ fun LicenseActivationScreen(
                 }
             }
 
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceVariant,
+            if (
+                state.access != LicenseAccess.ACTIVATION_REQUIRED &&
+                state.access != LicenseAccess.INVALID
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
                 ) {
-                    Text(
-                        text = stringResource(
-                            R.string.license_device_allowance,
-                            state.maxDevices,
-                        ),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        text = stringResource(R.string.license_offline_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.license_device_allowance,
+                                state.maxDevices,
+                            ),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            text = stringResource(R.string.license_offline_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -326,6 +345,13 @@ private fun TrialOfferCard(
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Done,
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
                 ),
             )
             Button(
@@ -404,7 +430,10 @@ private fun LicenseStatusCard(state: LicenseUiState) {
         "trial_already_used_customer" -> R.string.license_trial_error_customer_title to R.string.license_trial_error_customer_body
         "trial_already_used" -> R.string.license_trial_error_used_title to R.string.license_trial_error_used_body
         "trial_unavailable" -> R.string.license_trial_error_unavailable_title to R.string.license_trial_error_unavailable_body
-        "trial_network" -> R.string.license_error_network to R.string.license_trial_error_network_body
+        "trial_setup_required" -> R.string.license_trial_error_setup_title to R.string.license_trial_error_setup_body
+        "trial_server_error", "internal_error", "server_unavailable" ->
+            R.string.license_trial_error_server_title to R.string.license_trial_error_server_body
+        "trial_network" -> R.string.license_trial_error_network_title to R.string.license_trial_error_network_body
         else -> null
     }
     val content = trialContent ?: when (state.access) {

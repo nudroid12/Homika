@@ -5,8 +5,8 @@
     <string name="license_commercial_subtitle">Langganan dan akses cloud selamat</string>
     <string name="license_checking">Menyemak lesen</string>
     <string name="license_checking_body">Homika sedang mengesahkan peranti ini. Biasanya hanya mengambil masa seketika.</string>
-    <string name="license_activate_title">Aktifkan Homika Pro</string>
-    <string name="license_activate_body">Masukkan kod lesen yang diterima bersama pembelian Homika Pro.</string>
+    <string name="license_activate_title">Mulakan Homika Pro</string>
+    <string name="license_activate_body">Cuba Homika Pro percuma 7 hari, pilih pelan berbayar, atau aktifkan lesen yang anda sudah ada.</string>
     <string name="license_code">Lesen</string>
     <string name="license_activate_button">Aktifkan lesen</string>
     <string name="license_retry">Cuba semak semula</string>
@@ -63,7 +63,9 @@
     <string name="license_verify_activation_body">Homika memerlukan sambungan internet untuk mengesahkan lesen ini sebelum akses boleh diteruskan.</string>
     <string name="license_annual_primary_title">Pelan fleksibel · 1 bulan hingga 1 tahun</string>
     <string name="license_annual_primary_body">Pilih tempoh yang sesuai. Semua pelan berbayar menyokong sehingga %1$d peranti dengan fungsi Homika Pro yang sama.</string>
-    <string name="license_buy_online">Beli Homika Pro secara online</string>
+    <string name="license_buy_online">Lihat pelan Homika Pro</string>
+    <string name="license_existing_title">Sudah ada lesen?</string>
+    <string name="license_existing_body">Masukkan kod lesen Homika Pro di bawah untuk aktifkan peranti ini.</string>
     <string name="license_renew_online">Perbaharui Homika Pro secara online</string>
     <string name="license_upgrade_online">Naik taraf ke Homika Pro</string>
     <string name="license_renew_verify_button">Saya sudah renew · Sahkan sekarang</string>
@@ -118,6 +120,11 @@
     <string name="license_trial_error_used_body">Trial terdahulu untuk peranti dan email ini telah tamat. Pilih pelan berbayar untuk teruskan.</string>
     <string name="license_trial_error_unavailable_title">Trial tidak tersedia sementara waktu</string>
     <string name="license_trial_error_unavailable_body">Servis trial belum tersedia sekarang. Anda masih boleh aktifkan lesen berbayar.</string>
-    <string name="license_trial_error_network_body">Sambungkan internet untuk memulakan trial percuma.</string>
+    <string name="license_trial_error_network_title">Tidak dapat hubungi Homika</string>
+    <string name="license_trial_error_network_body">Homika tidak dapat menghubungi pelayan trial. Semak sambungan anda dan cuba lagi.</string>
+    <string name="license_trial_error_server_title">Ralat pelayan trial</string>
+    <string name="license_trial_error_server_body">Sambungan internet tersedia, tetapi servis trial Homika tidak dapat melengkapkan permintaan. Cuba lagi sebentar nanti.</string>
+    <string name="license_trial_error_setup_title">Trial tidak tersedia sementara waktu</string>
+    <string name="license_trial_error_setup_body">Servis trial Homika masih memerlukan satu langkah setup pelayan. Pengaktifan lesen berbayar tidak terjejas.</string>
 
 </resources>

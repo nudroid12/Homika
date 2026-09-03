@@ -15,7 +15,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 9,
+          version: 10,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -30,6 +30,8 @@ export default {
           self_service_trial: true,
           trial_days: 7,
           trial_max_devices: 1,
+          trial_error_reporting: true,
+          trial_storage_check: true,
         });
       }
 
@@ -242,6 +244,12 @@ async function claimTrial(request, env) {
   if (!email) return badRequest("invalid_email");
   if (!deviceId) return badRequest("device_id_required");
 
+  const readiness = await trialStorageReadiness(env);
+  if (!readiness.ready) {
+    console.warn("Trial storage is not ready", readiness);
+    return json({ ok: false, error: "trial_setup_required" }, 503);
+  }
+
   const deviceHash = await sha256Hex(deviceId);
   const customerHash = await sha256Hex(email);
 
@@ -310,17 +318,34 @@ async function claimTrial(request, env) {
     return json({ ok: false, error: "trial_unavailable" }, 503);
   }
 
-  const customerId = crypto.randomUUID();
+  // Reuse an existing customer row when the email is already known. This avoids
+  // duplicate-customer assumptions and keeps a trial linked to the same customer
+  // used by a prior paid/test licence.
+  const existingCustomer = await env.DB.prepare(
+    `SELECT id
+       FROM customers
+      WHERE lower(trim(email)) = lower(trim(?1))
+      ORDER BY created_at ASC
+      LIMIT 1`
+  ).bind(email).first();
+
+  const customerId = existingCustomer?.id || crypto.randomUUID();
   const licenseId = crypto.randomUUID();
   const redemptionId = crypto.randomUUID();
   const licenseKey = generateTrialLicenseKey();
   const expiresAt = formatSqliteTimestamp(Date.now() + (7 * 24 * 60 * 60 * 1000));
 
   try {
-    await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO customers (id, email) VALUES (?1, ?2)`
-      ).bind(customerId, email),
+    const statements = [];
+    if (!existingCustomer) {
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO customers (id, email) VALUES (?1, ?2)`
+        ).bind(customerId, email)
+      );
+    }
+
+    statements.push(
       env.DB.prepare(
         `INSERT INTO licenses (
            id, license_key, product_id, customer_id, status,
@@ -338,7 +363,9 @@ async function claimTrial(request, env) {
            customer_hash, device_hash, redeemed_at, expires_at
          ) VALUES (?1, 'homika_pro', ?2, ?3, ?4, ?5, CURRENT_TIMESTAMP, ?6)`
       ).bind(redemptionId, licenseId, customerId, customerHash, deviceHash, expiresAt),
-    ]);
+    );
+
+    await env.DB.batch(statements);
   } catch (err) {
     console.warn("Trial claim race or insert failure", err);
 
@@ -354,12 +381,39 @@ async function claimTrial(request, env) {
     ).bind(customerHash).first();
     if (racedCustomer) return json({ ok: false, error: "trial_already_used_customer" }, 409);
 
-    throw err;
+    console.error("Trial claim internal error", err);
+    return json({ ok: false, error: "trial_server_error" }, 500);
   }
 
   const license = await getLicenseById(env, licenseId);
-  if (!license) throw new Error("Trial licence was not created");
+  if (!license) return json({ ok: false, error: "trial_server_error" }, 500);
   return activationResponse(env, license, deviceHash, false);
+}
+
+async function trialStorageReadiness(env) {
+  try {
+    const table = await env.DB.prepare(
+      `SELECT name FROM sqlite_master
+        WHERE type = 'table' AND name = 'trial_redemptions'
+        LIMIT 1`
+    ).first();
+    if (!table) return { ready: false, reason: "trial_redemptions_missing" };
+
+    const plan = await env.DB.prepare(
+      `SELECT plan_key, duration_value, max_devices
+         FROM license_plans
+        WHERE product_id = 'homika_pro' AND plan_key = 'trial_7d'
+        LIMIT 1`
+    ).first();
+    if (!plan) return { ready: false, reason: "trial_plan_missing" };
+
+    // This lightweight query also confirms that the Patch 13A plan_key column exists.
+    await env.DB.prepare(`SELECT plan_key FROM licenses LIMIT 1`).first();
+    return { ready: true };
+  } catch (err) {
+    console.warn("Trial storage readiness check failed", err);
+    return { ready: false, reason: "trial_schema_incomplete" };
+  }
 }
 
 async function activateLicense(request, env) {

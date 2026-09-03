@@ -189,12 +189,13 @@ class LicenseApiClient(
                     )
                 }
 
-                if (response.status >= 500) {
-                    return@withContext LicenseApiResult.NetworkError
-                }
-
+                val errorCode = response.errorCode()
                 LicenseApiResult.Rejected(
-                    code = response.errorCode(),
+                    code = if (response.status >= 500 && errorCode == "invalid_server_response") {
+                        "server_unavailable"
+                    } else {
+                        errorCode
+                    },
                     planType = json?.optString("plan_type")
                         ?.takeIf { it.isNotBlank() }
                         ?.let(LicensePlanType::fromApi),
