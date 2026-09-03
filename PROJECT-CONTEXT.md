@@ -58,7 +58,7 @@ Do not commit secret values into the repository.
 Important Worker environment variables/secrets currently used:
 
 - `CLOUD_MASTER_KEY`
-- `HOMIKA_STORE_URL`
+- `HOMIKA_STORE_URL` (optional override; canonical Store URL is also compiled into Worker from Patch 13C.2)
 - `HOMIKA_ADMIN_SECRET`
 - `HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN`
 - `HOMIKA_ADMIN_TELEGRAM_CHAT_ID`
@@ -312,9 +312,26 @@ For payment/admin fixes, verify separately:
 - Telegram notification
 - idempotent completion
 
-## 14. Current status and next test
+## 14. Patch 13C.2 - Persistent Store URL
 
-Canonical status after Patch 13C.1 is deployed:
+Reason:
+
+`HOMIKA_STORE_URL` added manually in the Cloudflare Dashboard could disappear after Wrangler/Workers Builds deployment because non-secret dashboard variables are not guaranteed to survive config-driven deploys.
+
+Fix:
+
+- Canonical production Store URL `https://homika-store.pages.dev/` is compiled into Worker as a safe default.
+- `HOMIKA_STORE_URL` remains supported as an optional environment override.
+- Checkout redirect, renewal checkout URLs, bundled QR asset URL, and Admin Dashboard notification links all use the same resolver.
+- Store functionality therefore survives future Worker deployments even if the dashboard text variable disappears.
+- No D1 migration.
+- No Android changes.
+- No secret values are committed.
+- `backend/wrangler.jsonc` is deliberately not replaced, preserving the production D1/R2 binding configuration.
+
+## 15. Current status and next test
+
+Canonical status after Patch 13C.2 is deployed:
 
 - D1 migration 0009: done.
 - Worker v14: 13C backend deployed.
@@ -323,18 +340,15 @@ Canonical status after Patch 13C.1 is deployed:
 - Admin secret: configured.
 - Telegram bot/chat secrets: configured.
 - Telegram new-payment notification: confirmed working.
-- Current regression being fixed: Approve/Reject admin request auth header.
+- Patch 13C.1 Admin Approve/Reject auth fix: user confirmed working.
+- Store URL persistence: fixed by Patch 13C.2 canonical Worker fallback.
 
-Next test after deploying Patch 13C.1:
+Next test after deploying Patch 13C.2:
 
-1. Open Admin Dashboard.
-2. Log in with existing Admin Secret.
-3. Open existing `submitted` test payment.
-4. View proof.
-5. Press Approve.
-6. Confirm no `unauthorized` error.
-7. Confirm payment/submission becomes approved/completed.
-8. Verify licence in Homika.
-9. Then test Reject once with a separate test submission.
+1. Allow Worker deployment to complete.
+2. `HOMIKA_STORE_URL` may remain set or may be absent in Cloudflare Dashboard; checkout must work either way.
+3. Open Homika -> Licence -> Upgrade/Renew.
+4. Confirm browser opens `https://homika-store.pages.dev/`.
+5. Confirm QR and Admin Dashboard links still work.
 
-Do not create another D1 migration for this fix.
+No D1 migration is required for Patch 13C.2.

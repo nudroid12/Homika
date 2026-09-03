@@ -1,6 +1,7 @@
 const PUBLIC_SIGNING_KEY_B64 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsyzhDrq517vuIzP99flbfNSEPzrocJH/Dqlp07CNR+vNYadLpqpsVKGV+3SIBtF9ytcV6gB00d6dIVbfL5ORS0YY+XgKQhGjHAZ9/AWk1VqUCvXtavrZWA0kUMNy5kImzdtX/0cMclqH9WpC4kQxcsCgjpQp80mhdK3db1zmHsdi/4fH7Kxgcz1NTzFM3/8fLVXg1KdHw356vGmjJRoAxG8rg4rbymmgIRwFYnKUbyrG9xL4iBJ/J+D4zR5+DxQ3UCRKg5/576epGuWqkHARjxcR4IE1NEfsRHyqiRT4gXRoPdJfgSWB7nIGQ9Qvc8az6JQs4c7dV0wsMhUQ00XaewIDAQAB";
 const TOKEN_HEADER = { alg: "RS256", typ: "HAT", v: 1 };
 const TOKEN_LIFETIME_SECONDS = 5 * 365 * 24 * 60 * 60;
+const DEFAULT_HOMIKA_STORE_URL = "https://homika-store.pages.dev/";
 
 export default {
   async fetch(request, env, ctx) {
@@ -26,6 +27,7 @@ export default {
           device_management: true,
           commercial_licensing_ux: true,
           purchase_redirect: true,
+          persistent_store_url_default: true,
           store_catalog: true,
           checkout_intents: true,
           authenticated_renewal_checkout: true,
@@ -170,8 +172,16 @@ export default {
 };
 
 
-function homikaPurchaseRedirect(requestUrl, env) {
+function homikaStoreUrl(env) {
+  // HOMIKA_STORE_URL remains an optional override. The canonical production
+  // Pages URL is compiled in so Wrangler deployments cannot break checkout
+  // merely because a dashboard text variable was not preserved.
   const configured = cleanString(env.HOMIKA_STORE_URL, 2000);
+  return configured || DEFAULT_HOMIKA_STORE_URL;
+}
+
+function homikaPurchaseRedirect(requestUrl, env) {
+  const configured = homikaStoreUrl(env);
   if (configured) {
     try {
       const target = new URL(configured);
@@ -440,7 +450,7 @@ function safeHttpsUrl(value) {
 }
 
 function storeAssetUrl(env, filename) {
-  const storeUrl = cleanString(env.HOMIKA_STORE_URL, 2000);
+  const storeUrl = homikaStoreUrl(env);
   if (!storeUrl) return "";
   try {
     const base = new URL(storeUrl);
@@ -813,7 +823,7 @@ function checkoutHasExpired(intent) {
 }
 
 function checkoutUrlFor(request, env, token) {
-  const configured = cleanString(env.HOMIKA_STORE_URL, 2000);
+  const configured = homikaStoreUrl(env);
   if (configured) {
     try {
       const url = new URL(configured);
