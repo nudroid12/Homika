@@ -15,11 +15,13 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 4,
+          version: 5,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
           cloud_backup_retention: 5,
+          cloud_sync: true,
+          cloud_sync_protocol: 1,
         });
       }
 
@@ -53,6 +55,15 @@ export default {
 
       if (request.method === "GET" && url.pathname === "/v1/cloud/backups/latest/content") {
         return latestCloudBackupContent(request, env);
+      }
+
+
+      if (request.method === "POST" && url.pathname === "/v1/cloud/sync/push") {
+        return pushCloudSync(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/cloud/sync/pull") {
+        return pullCloudSync(request, env);
       }
 
       if (request.method === "GET" && url.pathname === "/v1/licenses/status") {
@@ -674,6 +685,350 @@ function bytesToBase64(bytes) {
 
 const MAX_CLOUD_BACKUP_BYTES = 10 * 1024 * 1024;
 const CLOUD_BACKUP_RETENTION = 5;
+
+
+const CLOUD_SYNC_PROTOCOL = 1;
+const CLOUD_SYNC_MAX_BATCH = 100;
+const CLOUD_SYNC_MAX_PULL = 200;
+const CLOUD_SYNC_MAX_PAYLOAD_BYTES = 256 * 1024;
+const CLOUD_SYNC_ALLOWED_TYPES = new Set([
+  "property",
+  "booking",
+  "payment",
+  "deposit",
+  "expense",
+  "blocked_date",
+]);
+
+async function pushCloudSync(request, env) {
+  const auth = await authenticateCloudRequest(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+  if (Number(body.protocol || CLOUD_SYNC_PROTOCOL) !== CLOUD_SYNC_PROTOCOL) {
+    return badRequest("unsupported_sync_protocol");
+  }
+
+  const rawChanges = Array.isArray(body.changes) ? body.changes : null;
+  if (!rawChanges) return badRequest("sync_changes_required");
+  if (rawChanges.length > CLOUD_SYNC_MAX_BATCH) {
+    return json({ ok: false, error: "sync_batch_too_large", max_changes: CLOUD_SYNC_MAX_BATCH }, 413);
+  }
+
+  const accepted = [];
+  const conflicts = [];
+
+  for (let index = 0; index < rawChanges.length; index += 1) {
+    const parsed = parseSyncChange(rawChanges[index]);
+    if (!parsed.ok) {
+      return json({ ok: false, error: parsed.error, change_index: index }, 400);
+    }
+    const change = parsed.change;
+
+    let payloadBytes;
+    try {
+      payloadBytes = base64ToBytes(change.payload_b64);
+    } catch {
+      return json({ ok: false, error: "invalid_sync_payload", change_index: index }, 400);
+    }
+    if (payloadBytes.byteLength <= 0 || payloadBytes.byteLength > CLOUD_SYNC_MAX_PAYLOAD_BYTES) {
+      return json({
+        ok: false,
+        error: "sync_payload_too_large",
+        change_index: index,
+        max_bytes: CLOUD_SYNC_MAX_PAYLOAD_BYTES,
+      }, 413);
+    }
+
+    const encryptedSha256 = await sha256HexBytes(payloadBytes);
+    const current = await getCloudSyncItem(
+      env,
+      auth.license.id,
+      change.entity_type,
+      change.entity_id,
+    );
+
+    if (
+      current &&
+      Number(current.revision) === change.revision &&
+      current.content_sha256 === change.content_sha256
+    ) {
+      accepted.push({
+        entity_type: change.entity_type,
+        entity_id: change.entity_id,
+        revision: change.revision,
+        server_sequence: Number(current.server_sequence || 0),
+        duplicate: true,
+      });
+      continue;
+    }
+
+    if (current) {
+      if (Number(current.revision) !== change.base_revision || change.revision <= change.base_revision) {
+        conflicts.push(syncConflictJson(change, current, "revision_conflict"));
+        continue;
+      }
+    } else if (change.base_revision !== 0) {
+      conflicts.push(syncConflictJson(change, null, "server_item_missing"));
+      continue;
+    }
+
+    const eventId = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO cloud_sync_events (
+         id, license_id, entity_type, entity_id,
+         revision, base_revision, updated_at_epoch_millis, is_deleted,
+         payload_b64, payload_sha256, content_sha256,
+         source_device_hash, status
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'pending')`
+    ).bind(
+      eventId,
+      auth.license.id,
+      change.entity_type,
+      change.entity_id,
+      change.revision,
+      change.base_revision,
+      change.updated_at_epoch_millis,
+      change.is_deleted ? 1 : 0,
+      change.payload_b64,
+      encryptedSha256,
+      change.content_sha256,
+      auth.deviceHash,
+    ).run();
+
+    const event = await env.DB.prepare(
+      `SELECT sequence FROM cloud_sync_events WHERE id = ?1 LIMIT 1`
+    ).bind(eventId).first();
+    const sequence = Number(event?.sequence || 0);
+    if (sequence <= 0) {
+      await env.DB.prepare(`DELETE FROM cloud_sync_events WHERE id = ?1`).bind(eventId).run();
+      throw new Error("Failed to reserve sync sequence");
+    }
+
+    let writeResult;
+    if (current) {
+      writeResult = await env.DB.prepare(
+        `UPDATE cloud_sync_items
+            SET revision = ?1,
+                updated_at_epoch_millis = ?2,
+                is_deleted = ?3,
+                payload_b64 = ?4,
+                payload_sha256 = ?5,
+                content_sha256 = ?6,
+                source_device_hash = ?7,
+                server_sequence = ?8,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE license_id = ?9
+            AND entity_type = ?10
+            AND entity_id = ?11
+            AND revision = ?12
+            AND content_sha256 = ?13`
+      ).bind(
+        change.revision,
+        change.updated_at_epoch_millis,
+        change.is_deleted ? 1 : 0,
+        change.payload_b64,
+        encryptedSha256,
+        change.content_sha256,
+        auth.deviceHash,
+        sequence,
+        auth.license.id,
+        change.entity_type,
+        change.entity_id,
+        change.base_revision,
+        current.content_sha256,
+      ).run();
+    } else {
+      writeResult = await env.DB.prepare(
+        `INSERT OR IGNORE INTO cloud_sync_items (
+           license_id, entity_type, entity_id, revision,
+           updated_at_epoch_millis, is_deleted,
+           payload_b64, payload_sha256, content_sha256,
+           source_device_hash, server_sequence
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
+      ).bind(
+        auth.license.id,
+        change.entity_type,
+        change.entity_id,
+        change.revision,
+        change.updated_at_epoch_millis,
+        change.is_deleted ? 1 : 0,
+        change.payload_b64,
+        encryptedSha256,
+        change.content_sha256,
+        auth.deviceHash,
+        sequence,
+      ).run();
+    }
+
+    if (!writeResult.meta?.changes) {
+      await env.DB.prepare(`DELETE FROM cloud_sync_events WHERE id = ?1`).bind(eventId).run();
+      const latest = await getCloudSyncItem(
+        env,
+        auth.license.id,
+        change.entity_type,
+        change.entity_id,
+      );
+      conflicts.push(syncConflictJson(change, latest, "concurrent_update"));
+      continue;
+    }
+
+    await env.DB.prepare(
+      `UPDATE cloud_sync_events SET status = 'ready' WHERE id = ?1`
+    ).bind(eventId).run();
+
+    accepted.push({
+      entity_type: change.entity_type,
+      entity_id: change.entity_id,
+      revision: change.revision,
+      server_sequence: sequence,
+      duplicate: false,
+    });
+  }
+
+  return json({
+    ok: true,
+    protocol: CLOUD_SYNC_PROTOCOL,
+    accepted,
+    conflicts,
+  });
+}
+
+async function pullCloudSync(request, env) {
+  const auth = await authenticateCloudRequest(request, env);
+  if (!auth.ok) return auth.response;
+
+  const url = new URL(request.url);
+  const cursorRaw = Number.parseInt(url.searchParams.get("cursor") || "0", 10);
+  const limitRaw = Number.parseInt(url.searchParams.get("limit") || "100", 10);
+  const cursor = Number.isFinite(cursorRaw) && cursorRaw >= 0 ? cursorRaw : 0;
+  const limit = Math.min(
+    CLOUD_SYNC_MAX_PULL,
+    Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 100),
+  );
+
+  const result = await env.DB.prepare(
+    `SELECT sequence, entity_type, entity_id, revision,
+            updated_at_epoch_millis, is_deleted,
+            payload_b64, payload_sha256, content_sha256,
+            source_device_hash, created_at
+       FROM cloud_sync_events
+      WHERE license_id = ?1
+        AND status = 'ready'
+        AND sequence > ?2
+      ORDER BY sequence ASC
+      LIMIT ?3`
+  ).bind(auth.license.id, cursor, limit + 1).all();
+
+  const rows = result.results || [];
+  const hasMore = rows.length > limit;
+  const selected = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = selected.length > 0
+    ? Number(selected[selected.length - 1].sequence)
+    : cursor;
+
+  return json({
+    ok: true,
+    protocol: CLOUD_SYNC_PROTOCOL,
+    cursor,
+    next_cursor: nextCursor,
+    has_more: hasMore,
+    changes: selected.map(syncEventJson),
+  });
+}
+
+function parseSyncChange(value) {
+  if (!value || typeof value !== "object") return { ok: false, error: "invalid_sync_change" };
+
+  const entityType = cleanString(value.entity_type, 40).toLowerCase();
+  const entityId = cleanString(value.entity_id, 120);
+  const revision = Number(value.revision);
+  const baseRevision = Number(value.base_revision);
+  const updatedAt = Number(value.updated_at_epoch_millis);
+  const payloadB64 = cleanString(value.payload_b64, 400000);
+  const contentSha256 = cleanString(value.content_sha256, 64).toLowerCase();
+
+  if (!CLOUD_SYNC_ALLOWED_TYPES.has(entityType)) return { ok: false, error: "invalid_sync_entity_type" };
+  if (!entityId) return { ok: false, error: "sync_entity_id_required" };
+  if (!Number.isSafeInteger(revision) || revision < 0) return { ok: false, error: "invalid_sync_revision" };
+  if (!Number.isSafeInteger(baseRevision) || baseRevision < 0) return { ok: false, error: "invalid_sync_base_revision" };
+  if (!Number.isSafeInteger(updatedAt) || updatedAt <= 0) return { ok: false, error: "invalid_sync_updated_at" };
+  if (!payloadB64) return { ok: false, error: "sync_payload_required" };
+  if (!/^[a-f0-9]{64}$/.test(contentSha256)) return { ok: false, error: "invalid_sync_content_sha256" };
+
+  return {
+    ok: true,
+    change: {
+      entity_type: entityType,
+      entity_id: entityId,
+      revision,
+      base_revision: baseRevision,
+      updated_at_epoch_millis: updatedAt,
+      is_deleted: value.is_deleted === true || Number(value.is_deleted) === 1,
+      payload_b64: payloadB64,
+      content_sha256: contentSha256,
+    },
+  };
+}
+
+async function getCloudSyncItem(env, licenseId, entityType, entityId) {
+  return env.DB.prepare(
+    `SELECT license_id, entity_type, entity_id, revision,
+            updated_at_epoch_millis, is_deleted,
+            payload_b64, payload_sha256, content_sha256,
+            source_device_hash, server_sequence, updated_at
+       FROM cloud_sync_items
+      WHERE license_id = ?1
+        AND entity_type = ?2
+        AND entity_id = ?3
+      LIMIT 1`
+  ).bind(licenseId, entityType, entityId).first();
+}
+
+function syncEventJson(row) {
+  return {
+    server_sequence: Number(row.sequence),
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    revision: Number(row.revision),
+    updated_at_epoch_millis: Number(row.updated_at_epoch_millis),
+    is_deleted: Number(row.is_deleted) === 1,
+    payload_b64: row.payload_b64,
+    payload_sha256: row.payload_sha256,
+    content_sha256: row.content_sha256,
+    source_device_hash: row.source_device_hash,
+    created_at: row.created_at,
+  };
+}
+
+function syncItemJson(row) {
+  if (!row) return null;
+  return {
+    server_sequence: Number(row.server_sequence || 0),
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    revision: Number(row.revision),
+    updated_at_epoch_millis: Number(row.updated_at_epoch_millis),
+    is_deleted: Number(row.is_deleted) === 1,
+    payload_b64: row.payload_b64,
+    payload_sha256: row.payload_sha256,
+    content_sha256: row.content_sha256,
+    source_device_hash: row.source_device_hash,
+    updated_at: row.updated_at,
+  };
+}
+
+function syncConflictJson(incoming, current, reason) {
+  return {
+    entity_type: incoming.entity_type,
+    entity_id: incoming.entity_id,
+    local_revision: incoming.revision,
+    base_revision: incoming.base_revision,
+    reason,
+    current: syncItemJson(current),
+  };
+}
 
 async function getLicenseByKey(env, licenseKey) {
   return env.DB.prepare(
