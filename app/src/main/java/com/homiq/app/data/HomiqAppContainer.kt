@@ -5,6 +5,9 @@ import com.homiq.app.data.account.AccountPreferences
 import com.homiq.app.data.backup.BackupPreferences
 import com.homiq.app.data.backup.HomiqBackupService
 import com.homiq.app.data.cloud.CloudAutoBackupCoordinator
+import com.homiq.app.data.cloud.CloudSyncCoordinator
+import com.homiq.app.data.cloud.CloudSyncPreferences
+import com.homiq.app.data.cloud.HomikaCloudSyncService
 import com.homiq.app.data.cloud.HomikaCloudBackupService
 import com.homiq.app.data.local.HomiqDatabase
 import com.homiq.app.data.license.LicenseRepository
@@ -121,8 +124,32 @@ class HomiqAppContainer(
         )
     }
 
+    val cloudSyncPreferences: CloudSyncPreferences by lazy {
+        CloudSyncPreferences(context)
+    }
+
+    val cloudSyncService: HomikaCloudSyncService by lazy {
+        HomikaCloudSyncService(
+            database = database,
+            backupService = backupService,
+            licenseRepository = licenseRepository,
+            preferences = cloudSyncPreferences,
+        )
+    }
+
+    val cloudSyncCoordinator: CloudSyncCoordinator by lazy {
+        CloudSyncCoordinator(
+            changes = syncChanges,
+            service = cloudSyncService,
+            preferences = cloudSyncPreferences,
+            licenseRepository = licenseRepository,
+            onRemoteApplied = cloudAutoBackupCoordinator::markLocalDataChanged,
+        )
+    }
+
     fun startBackgroundServices() {
         cloudAutoBackupCoordinator.start()
+        cloudSyncCoordinator.start()
     }
 
     val updateManager: HomikaUpdateManager by lazy {

@@ -52,6 +52,9 @@ object ActivationTokenVerifier {
             return null
         }
 
+        val licenseId = claims.optString("license_id").trim()
+        if (licenseId.isBlank()) return null
+
         val serverDeviceHash = claims.optString("device_hash").trim()
         if (serverDeviceHash.isBlank() || serverDeviceHash != sha256(expectedDeviceId)) {
             return null
@@ -73,6 +76,7 @@ object ActivationTokenVerifier {
         if (nowMillis >= tokenExpiryMillis) return null
 
         return VerifiedActivationToken(
+            licenseId = licenseId,
             planType = planType,
             expiresAtEpochMillis = licenseExpiryMillis,
             licenseHint = claims.optString("license_hint", "••••").ifBlank { "••••" },

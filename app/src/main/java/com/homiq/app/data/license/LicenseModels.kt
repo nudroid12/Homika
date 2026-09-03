@@ -88,6 +88,7 @@ sealed interface LicenseDeactivateResult {
 }
 
 data class VerifiedActivationToken(
+    val licenseId: String,
     val planType: LicensePlanType,
     val expiresAtEpochMillis: Long,
     val licenseHint: String,

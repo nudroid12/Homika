@@ -19,6 +19,7 @@ class LicenseRepository(
     data class CloudCredentials(
         val activationToken: String,
         val deviceId: String,
+        val licenseId: String,
     )
 
     fun cloudCredentials(
@@ -41,6 +42,7 @@ class LicenseRepository(
         return CloudCredentials(
             activationToken = stored.activationToken,
             deviceId = deviceId,
+            licenseId = verified.licenseId,
         )
     }
 
