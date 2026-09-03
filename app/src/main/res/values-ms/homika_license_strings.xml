@@ -127,4 +127,6 @@
     <string name="license_trial_error_setup_title">Trial tidak tersedia sementara waktu</string>
     <string name="license_trial_error_setup_body">Servis trial Homika masih memerlukan satu langkah setup pelayan. Pengaktifan lesen berbayar tidak terjejas.</string>
 
+    <string name="license_trial_error_endpoint_title">Kemas kini servis percubaan diperlukan</string>
+    <string name="license_trial_error_endpoint_body">Aplikasi berjaya menghubungi Homika, tetapi servis percubaan belum tersedia pada server. Kemas kini backend Homika dan cuba lagi.</string>
 </resources>

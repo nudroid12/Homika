@@ -26,14 +26,35 @@ class LicenseApiClient(
         email: String,
         deviceId: String,
         deviceName: String,
-    ): LicenseApiResult =
-        postActivation(
+    ): LicenseApiResult {
+        val result = postActivation(
             path = "/v1/trials/claim",
             payload = JSONObject()
                 .put("email", email)
                 .put("device_id", deviceId)
                 .put("device_name", deviceName),
         )
+        return when (result) {
+            is LicenseApiResult.Rejected -> {
+                val trialCode = when (result.code) {
+                    "invalid_email",
+                    "trial_already_used_device",
+                    "trial_already_used_customer",
+                    "trial_already_used",
+                    "trial_unavailable",
+                    "trial_setup_required",
+                    "trial_server_error",
+                    "internal_error",
+                    "server_unavailable",
+                    -> result.code
+                    "not_found" -> "trial_endpoint_unavailable"
+                    else -> "trial_server_error"
+                }
+                result.copy(code = trialCode)
+            }
+            else -> result
+        }
+    }
 
     suspend fun validate(
         activationToken: String,

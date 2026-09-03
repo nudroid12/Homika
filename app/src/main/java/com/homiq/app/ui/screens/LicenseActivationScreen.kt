@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -61,14 +63,21 @@ fun LicenseActivationScreen(
         }
     }
 
-    Box(
+    Surface(
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -80,6 +89,7 @@ fun LicenseActivationScreen(
                         text = stringResource(R.string.license_homika_pro),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                     Text(
                         text = stringResource(R.string.license_commercial_subtitle),
@@ -120,6 +130,7 @@ fun LicenseActivationScreen(
                 text = activationHeadline(state.access),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
                 text = activationBody(state.access),
@@ -209,6 +220,7 @@ fun LicenseActivationScreen(
                         text = stringResource(R.string.license_existing_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                     Text(
                         text = stringResource(R.string.license_existing_body),
@@ -305,7 +317,8 @@ fun LicenseActivationScreen(
             }
         }
     }
-}
+        }
+    }
 
 @Composable
 private fun TrialOfferCard(
@@ -317,7 +330,9 @@ private fun TrialOfferCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.secondaryContainer,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -327,12 +342,12 @@ private fun TrialOfferCard(
                 text = stringResource(R.string.license_trial_offer_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = stringResource(R.string.license_trial_offer_body),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             OutlinedTextField(
                 value = email,
@@ -351,6 +366,13 @@ private fun TrialOfferCard(
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     disabledContainerColor = MaterialTheme.colorScheme.surface,
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     cursorColor = MaterialTheme.colorScheme.primary,
                 ),
             )
@@ -372,7 +394,7 @@ private fun TrialOfferCard(
             Text(
                 text = stringResource(R.string.license_trial_once_note),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
@@ -383,7 +405,9 @@ private fun AnnualOfferCard(maxDevices: Int) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.primaryContainer,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -393,12 +417,12 @@ private fun AnnualOfferCard(maxDevices: Int) {
                 text = stringResource(R.string.license_annual_primary_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = stringResource(R.string.license_annual_primary_body, maxDevices),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -431,6 +455,8 @@ private fun LicenseStatusCard(state: LicenseUiState) {
         "trial_already_used" -> R.string.license_trial_error_used_title to R.string.license_trial_error_used_body
         "trial_unavailable" -> R.string.license_trial_error_unavailable_title to R.string.license_trial_error_unavailable_body
         "trial_setup_required" -> R.string.license_trial_error_setup_title to R.string.license_trial_error_setup_body
+        "trial_endpoint_unavailable" ->
+            R.string.license_trial_error_endpoint_title to R.string.license_trial_error_endpoint_body
         "trial_server_error", "internal_error", "server_unavailable" ->
             R.string.license_trial_error_server_title to R.string.license_trial_error_server_body
         "trial_network" -> R.string.license_trial_error_network_title to R.string.license_trial_error_network_body

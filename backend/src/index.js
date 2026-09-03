@@ -15,7 +15,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 10,
+          version: 11,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -32,6 +32,8 @@ export default {
           trial_max_devices: 1,
           trial_error_reporting: true,
           trial_storage_check: true,
+          trial_response_contract: 2,
+          activation_theme_fix: true,
         });
       }
 
@@ -235,19 +237,19 @@ async function storeCatalog(env) {
 
 async function claimTrial(request, env) {
   const body = await readJson(request);
-  if (!body) return badRequest("invalid_json");
+  if (!body) return trialJson({ ok: false, error: "invalid_json" }, 400);
 
   const email = normalizeEmail(body.email);
   const deviceId = cleanString(body.device_id, 300);
   const deviceName = cleanString(body.device_name, 120);
 
-  if (!email) return badRequest("invalid_email");
-  if (!deviceId) return badRequest("device_id_required");
+  if (!email) return trialJson({ ok: false, error: "invalid_email" }, 400);
+  if (!deviceId) return trialJson({ ok: false, error: "device_id_required" }, 400);
 
   const readiness = await trialStorageReadiness(env);
   if (!readiness.ready) {
     console.warn("Trial storage is not ready", readiness);
-    return json({ ok: false, error: "trial_setup_required" }, 503);
+    return trialJson({ ok: false, error: "trial_setup_required" }, 503);
   }
 
   const deviceHash = await sha256Hex(deviceId);
@@ -297,13 +299,13 @@ async function claimTrial(request, env) {
         return activationResponse(env, existingLicense, deviceHash, true);
       }
 
-      return json({ ok: false, error: "trial_already_used" }, 409);
+      return trialJson({ ok: false, error: "trial_already_used" }, 409);
     }
 
     if (deviceRedemption) {
-      return json({ ok: false, error: "trial_already_used_device" }, 409);
+      return trialJson({ ok: false, error: "trial_already_used_device" }, 409);
     }
-    return json({ ok: false, error: "trial_already_used_customer" }, 409);
+    return trialJson({ ok: false, error: "trial_already_used_customer" }, 409);
   }
 
   const plan = await env.DB.prepare(
@@ -315,7 +317,7 @@ async function claimTrial(request, env) {
   ).bind("homika_pro").first();
 
   if (!plan || Number(plan.duration_value || 0) !== 7) {
-    return json({ ok: false, error: "trial_unavailable" }, 503);
+    return trialJson({ ok: false, error: "trial_unavailable" }, 503);
   }
 
   // Reuse an existing customer row when the email is already known. This avoids
@@ -373,21 +375,25 @@ async function claimTrial(request, env) {
       `SELECT id FROM trial_redemptions
         WHERE product_id = 'homika_pro' AND device_hash = ?1 LIMIT 1`
     ).bind(deviceHash).first();
-    if (racedDevice) return json({ ok: false, error: "trial_already_used_device" }, 409);
+    if (racedDevice) return trialJson({ ok: false, error: "trial_already_used_device" }, 409);
 
     const racedCustomer = await env.DB.prepare(
       `SELECT id FROM trial_redemptions
         WHERE product_id = 'homika_pro' AND customer_hash = ?1 LIMIT 1`
     ).bind(customerHash).first();
-    if (racedCustomer) return json({ ok: false, error: "trial_already_used_customer" }, 409);
+    if (racedCustomer) return trialJson({ ok: false, error: "trial_already_used_customer" }, 409);
 
     console.error("Trial claim internal error", err);
-    return json({ ok: false, error: "trial_server_error" }, 500);
+    return trialJson({ ok: false, error: "trial_server_error" }, 500);
   }
 
   const license = await getLicenseById(env, licenseId);
-  if (!license) return json({ ok: false, error: "trial_server_error" }, 500);
+  if (!license) return trialJson({ ok: false, error: "trial_server_error" }, 500);
   return activationResponse(env, license, deviceHash, false);
+}
+
+function trialJson(data, status = 200) {
+  return json({ ...data, endpoint: "trial_claim", contract: 2 }, status);
 }
 
 async function trialStorageReadiness(env) {

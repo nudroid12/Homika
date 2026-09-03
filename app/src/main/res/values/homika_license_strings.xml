@@ -127,4 +127,6 @@
     <string name="license_trial_error_setup_title">Trial temporarily unavailable</string>
     <string name="license_trial_error_setup_body">The Homika trial service still needs a server setup step. Paid licence activation is not affected.</string>
 
+    <string name="license_trial_error_endpoint_title">Trial service update required</string>
+    <string name="license_trial_error_endpoint_body">The app reached Homika, but the trial endpoint is not available on the server yet. Update the Homika backend and try again.</string>
 </resources>
