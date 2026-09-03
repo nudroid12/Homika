@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.homiq.app.R
 import com.homiq.app.data.license.LicenseAccess
@@ -45,10 +46,12 @@ import com.homiq.app.ui.components.HomikaBrandMark
 fun LicenseActivationScreen(
     state: LicenseUiState,
     onActivate: (String) -> Unit,
+    onClaimTrial: (String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var licenseKey by rememberSaveable { mutableStateOf(state.licenseKey) }
+    var trialEmail by rememberSaveable { mutableStateOf("") }
     val uriHandler = LocalUriHandler.current
 
     LaunchedEffect(state.licenseKey) {
@@ -192,6 +195,13 @@ fun LicenseActivationScreen(
                 ) {
                     Text(stringResource(R.string.license_buy_online))
                 }
+
+                TrialOfferCard(
+                    email = trialEmail,
+                    busy = state.busy,
+                    onEmailChange = { trialEmail = it.take(254) },
+                    onClaim = { onClaimTrial(trialEmail) },
+                )
             }
 
             if (state.access == LicenseAccess.DEVICE_LIMIT) {
@@ -279,6 +289,70 @@ fun LicenseActivationScreen(
 }
 
 @Composable
+private fun TrialOfferCard(
+    email: String,
+    busy: Boolean,
+    onEmailChange: (String) -> Unit,
+    onClaim: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.license_trial_offer_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Text(
+                text = stringResource(R.string.license_trial_offer_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            OutlinedTextField(
+                value = email,
+                onValueChange = onEmailChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.license_trial_email)) },
+                placeholder = { Text("nama@email.com") },
+                singleLine = true,
+                enabled = !busy,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Done,
+                ),
+            )
+            Button(
+                onClick = onClaim,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = email.isNotBlank() && !busy,
+            ) {
+                if (busy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(stringResource(R.string.license_trial_start))
+            }
+            Text(
+                text = stringResource(R.string.license_trial_once_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
 private fun AnnualOfferCard(maxDevices: Int) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -324,7 +398,16 @@ private fun activationBody(access: LicenseAccess): String =
 
 @Composable
 private fun LicenseStatusCard(state: LicenseUiState) {
-    val content = when (state.access) {
+    val trialContent = when (state.errorCode) {
+        "invalid_email" -> R.string.license_trial_error_email_title to R.string.license_trial_error_email_body
+        "trial_already_used_device" -> R.string.license_trial_error_device_title to R.string.license_trial_error_device_body
+        "trial_already_used_customer" -> R.string.license_trial_error_customer_title to R.string.license_trial_error_customer_body
+        "trial_already_used" -> R.string.license_trial_error_used_title to R.string.license_trial_error_used_body
+        "trial_unavailable" -> R.string.license_trial_error_unavailable_title to R.string.license_trial_error_unavailable_body
+        "trial_network" -> R.string.license_error_network to R.string.license_trial_error_network_body
+        else -> null
+    }
+    val content = trialContent ?: when (state.access) {
         LicenseAccess.ACTIVATION_REQUIRED -> null
         LicenseAccess.NEEDS_INTERNET ->
             R.string.license_error_network to R.string.license_error_network_body

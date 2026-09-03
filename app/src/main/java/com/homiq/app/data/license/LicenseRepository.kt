@@ -155,6 +155,28 @@ class LicenseRepository(
         }
     }
 
+    suspend fun claimTrial(rawEmail: String): LicenseUiState {
+        val email = normalizeEmail(rawEmail)
+        if (email.isBlank()) {
+            return LicenseUiState(
+                access = LicenseAccess.INVALID,
+                errorCode = "invalid_email",
+            )
+        }
+
+        return when (val result = api.claimTrial(email, deviceId, deviceName)) {
+            is LicenseApiResult.Success ->
+                saveAndBuildActive(result.activation)
+            is LicenseApiResult.Rejected ->
+                rejectedState("", result)
+            LicenseApiResult.NetworkError ->
+                LicenseUiState(
+                    access = LicenseAccess.INVALID,
+                    errorCode = "trial_network",
+                )
+        }
+    }
+
     suspend fun validate(): LicenseUiState {
         val stored = preferences.read()
         if (stored == null) {
@@ -396,6 +418,12 @@ class LicenseRepository(
             usingOfflineGrace = usingOfflineGrace,
         )
 
+    private fun normalizeEmail(raw: String): String {
+        val email = raw.trim().lowercase().take(254)
+        if (!EMAIL_REGEX.matches(email)) return ""
+        return email
+    }
+
     private fun normalizeKey(raw: String): String =
         raw.trim()
             .uppercase()
@@ -422,6 +450,7 @@ class LicenseRepository(
     }
 
     companion object {
+        private val EMAIL_REGEX = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
         private const val VALIDATION_INTERVAL_MS = 24L * 60L * 60L * 1000L
         private const val OFFLINE_GRACE_MS = 7L * 24L * 60L * 60L * 1000L
         private const val CLOCK_ROLLBACK_TOLERANCE_MS = 5L * 60L * 1000L

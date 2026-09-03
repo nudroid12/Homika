@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS licenses (
     expires_at TEXT NOT NULL,
     max_devices INTEGER NOT NULL DEFAULT 3,
     plan_type TEXT NOT NULL DEFAULT 'annual',
+    plan_key TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id),
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS payments (
     amount_cents INTEGER NOT NULL,
     currency TEXT NOT NULL DEFAULT 'MYR',
     status TEXT NOT NULL,
+    plan_key TEXT,
     paid_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (license_id) REFERENCES licenses(id)
@@ -66,7 +68,11 @@ CREATE TABLE IF NOT EXISTS license_plans (
     duration_value INTEGER,
     max_devices INTEGER NOT NULL DEFAULT 3,
     sale_enabled INTEGER NOT NULL DEFAULT 0,
-    sort_order INTEGER NOT NULL DEFAULT 0
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    price_cents INTEGER,
+    compare_at_price_cents INTEGER,
+    currency TEXT NOT NULL DEFAULT 'MYR',
+    is_featured INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS cloud_backups (
@@ -88,9 +94,11 @@ CREATE TABLE IF NOT EXISTS cloud_backups (
 CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses(license_key);
 CREATE INDEX IF NOT EXISTS idx_licenses_customer ON licenses(customer_id);
 CREATE INDEX IF NOT EXISTS idx_licenses_plan_type ON licenses(plan_type);
+CREATE INDEX IF NOT EXISTS idx_licenses_plan_key ON licenses(plan_key);
 CREATE INDEX IF NOT EXISTS idx_devices_license ON devices(license_id);
 CREATE INDEX IF NOT EXISTS idx_devices_hash ON devices(device_hash);
 CREATE INDEX IF NOT EXISTS idx_payments_license ON payments(license_id);
+CREATE INDEX IF NOT EXISTS idx_payments_plan_key ON payments(plan_key);
 CREATE INDEX IF NOT EXISTS idx_license_plans_product ON license_plans(product_id);
 CREATE INDEX IF NOT EXISTS idx_license_plans_sale_enabled ON license_plans(product_id, sale_enabled);
 CREATE INDEX IF NOT EXISTS idx_cloud_backups_license_created
@@ -102,12 +110,35 @@ INSERT OR IGNORE INTO products (id, name, default_max_devices)
 VALUES ('homika_pro', 'Homika Pro', 3);
 
 INSERT OR REPLACE INTO license_plans
-(plan_key, product_id, name, duration_unit, duration_value, max_devices, sale_enabled, sort_order)
+(plan_key, product_id, name, duration_unit, duration_value, max_devices,
+ sale_enabled, sort_order, price_cents, compare_at_price_cents, currency, is_featured)
 VALUES
-('trial', 'homika_pro', 'Trial', 'day', 14, 3, 0, 10),
-('monthly', 'homika_pro', 'Monthly', 'month', 1, 3, 0, 20),
-('annual', 'homika_pro', 'Annual', 'year', 1, 3, 1, 30),
-('lifetime', 'homika_pro', 'Lifetime', 'lifetime', NULL, 3, 0, 90);
+('trial_7d', 'homika_pro', '7-Day Free Trial', 'day', 7, 1, 0, 5, 0, 0, 'MYR', 0),
+('1_month',  'homika_pro', '1 Month',  'month', 1, 3, 1, 10, 700, 1000, 'MYR', 0),
+('3_month',  'homika_pro', '3 Months', 'month', 3, 3, 1, 20, 1900, 3000, 'MYR', 0),
+('6_month',  'homika_pro', '6 Months', 'month', 6, 3, 1, 30, 3500, 6000, 'MYR', 0),
+('1_year',   'homika_pro', '1 Year',   'year', 1, 3, 1, 40, 5900, 12000, 'MYR', 1),
+('lifetime', 'homika_pro', 'Lifetime', 'lifetime', NULL, 3, 0, 90, NULL, NULL, 'MYR', 0);
+
+CREATE TABLE IF NOT EXISTS trial_redemptions (
+    id TEXT PRIMARY KEY,
+    product_id TEXT NOT NULL,
+    license_id TEXT NOT NULL UNIQUE,
+    customer_id TEXT NOT NULL,
+    customer_hash TEXT NOT NULL,
+    device_hash TEXT NOT NULL,
+    redeemed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id),
+    FOREIGN KEY (license_id) REFERENCES licenses(id),
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    UNIQUE (product_id, customer_hash),
+    UNIQUE (product_id, device_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trial_redemptions_license ON trial_redemptions(license_id);
+CREATE INDEX IF NOT EXISTS idx_trial_redemptions_customer ON trial_redemptions(customer_id);
 
 -- Cloud Sync protocol v1
 CREATE TABLE IF NOT EXISTS cloud_sync_events (

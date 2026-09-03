@@ -22,6 +22,19 @@ class LicenseApiClient(
                 .put("device_name", deviceName),
         )
 
+    suspend fun claimTrial(
+        email: String,
+        deviceId: String,
+        deviceName: String,
+    ): LicenseApiResult =
+        postActivation(
+            path = "/v1/trials/claim",
+            payload = JSONObject()
+                .put("email", email)
+                .put("device_id", deviceId)
+                .put("device_name", deviceName),
+        )
+
     suspend fun validate(
         activationToken: String,
         deviceId: String,

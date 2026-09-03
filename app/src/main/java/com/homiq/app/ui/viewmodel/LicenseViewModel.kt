@@ -55,6 +55,18 @@ class LicenseViewModel(
         }
     }
 
+    fun claimTrial(email: String) {
+        if (mutableState.value.busy) return
+        mutableState.value = mutableState.value.copy(
+            busy = true,
+            errorCode = null,
+        )
+
+        viewModelScope.launch {
+            mutableState.value = repository.claimTrial(email).copy(busy = false)
+        }
+    }
+
     fun retry() {
         if (mutableState.value.busy) return
         refresh(forceBusy = true)

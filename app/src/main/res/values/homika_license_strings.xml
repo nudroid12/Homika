@@ -61,8 +61,8 @@
     <string name="license_device_limit_activation_body">This licence is valid, but all device slots are currently in use.</string>
     <string name="license_verify_title">Verify Homika Pro</string>
     <string name="license_verify_activation_body">Homika needs an internet connection to verify this licence before access can continue.</string>
-    <string name="license_annual_primary_title">Annual · Primary public plan</string>
-    <string name="license_annual_primary_body">One annual licence supports up to %1$d devices. Trial or monthly access may be issued separately when available.</string>
+    <string name="license_annual_primary_title">Flexible plans · 1 month to 1 year</string>
+    <string name="license_annual_primary_body">Choose the term that suits you. Every paid plan supports up to %1$d devices with the same Homika Pro features.</string>
     <string name="license_buy_online">Buy Homika Pro online</string>
     <string name="license_renew_online">Renew Homika Pro online</string>
     <string name="license_upgrade_online">Upgrade to Homika Pro</string>
@@ -80,7 +80,7 @@
     <string name="license_renewal_due_title">Renewal coming up</string>
     <string name="license_renewal_due_body">This licence is approaching its expiry date. Renew early to avoid an interruption in Homika Pro access.</string>
     <string name="license_trial_status_title">Trial access</string>
-    <string name="license_trial_status_body">Your trial is active. Upgrade to the annual plan when you are ready to keep Homika Pro active.</string>
+    <string name="license_trial_status_body">Your trial is active. Choose any paid plan when you are ready to keep Homika Pro active.</string>
 
     <string name="license_device_management_title">Active devices</string>
     <string name="license_device_slots_summary">%1$d of %2$d active · %3$d slot(s) available</string>
@@ -102,5 +102,22 @@
     <string name="license_devices_error_missing">That device is already inactive or no longer exists.</string>
     <string name="license_devices_error_current">Use “Deactivate this device” for the current device.</string>
     <string name="license_devices_error_generic">Could not update the device list. Try again.</string>
+
+    <string name="license_trial_offer_title">Try Homika Pro free for 7 days</string>
+    <string name="license_trial_offer_body">No card required. Trial unlocks Homika Pro on one device for 7 days. Each device and email can claim the trial only once.</string>
+    <string name="license_trial_email">Email for trial</string>
+    <string name="license_trial_start">Start 7-day free trial</string>
+    <string name="license_trial_once_note">One trial per device and email. Reinstalling or clearing app data does not create a new trial.</string>
+    <string name="license_trial_error_email_title">Enter a valid email</string>
+    <string name="license_trial_error_email_body">A valid email address is required to start the free trial.</string>
+    <string name="license_trial_error_device_title">Trial already used on this device</string>
+    <string name="license_trial_error_device_body">This device has already claimed its Homika Pro trial. Choose a paid plan to continue.</string>
+    <string name="license_trial_error_customer_title">Trial already used for this email</string>
+    <string name="license_trial_error_customer_body">This email has already claimed a Homika Pro trial. Choose a paid plan to continue.</string>
+    <string name="license_trial_error_used_title">Free trial already completed</string>
+    <string name="license_trial_error_used_body">The previous trial for this device and email has ended. Choose a paid plan to continue.</string>
+    <string name="license_trial_error_unavailable_title">Trial temporarily unavailable</string>
+    <string name="license_trial_error_unavailable_body">The trial service is not ready right now. You can still activate a paid licence.</string>
+    <string name="license_trial_error_network_body">Connect to the internet to start the free trial.</string>
 
 </resources>

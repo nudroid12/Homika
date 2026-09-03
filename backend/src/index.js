@@ -15,7 +15,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 8,
+          version: 9,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -26,6 +26,10 @@ export default {
           device_management: true,
           commercial_licensing_ux: true,
           purchase_redirect: true,
+          store_catalog: true,
+          self_service_trial: true,
+          trial_days: 7,
+          trial_max_devices: 1,
         });
       }
 
@@ -35,6 +39,14 @@ export default {
 
       if (request.method === "GET" && url.pathname === "/v1/plans") {
         return publicPlans(env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/store/catalog") {
+        return storeCatalog(env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/trials/claim") {
+        return claimTrial(request, env);
       }
 
       if (request.method === "POST" && url.pathname === "/v1/licenses/activate") {
@@ -162,6 +174,192 @@ async function publicPlans(env) {
       max_devices: Number(plan.max_devices || 3),
     })),
   });
+}
+
+
+async function storeCatalog(env) {
+  const result = await env.DB.prepare(
+    `SELECT plan_key, name, duration_unit, duration_value, max_devices,
+            price_cents, compare_at_price_cents, currency, is_featured
+       FROM license_plans
+      WHERE product_id = ?1
+        AND sale_enabled = 1
+        AND price_cents IS NOT NULL
+      ORDER BY sort_order ASC, plan_key ASC`
+  ).bind("homika_pro").all();
+
+  const trial = await env.DB.prepare(
+    `SELECT plan_key, name, duration_unit, duration_value, max_devices
+       FROM license_plans
+      WHERE product_id = ?1 AND plan_key = 'trial_7d'
+      LIMIT 1`
+  ).bind("homika_pro").first();
+
+  return json({
+    ok: true,
+    product: {
+      id: "homika_pro",
+      name: "Homika Pro",
+      max_devices: 3,
+      cloud_sync: true,
+      cloud_backup: true,
+    },
+    launch_promotion: true,
+    trial: trial ? {
+      plan_key: trial.plan_key,
+      name: trial.name,
+      duration_unit: trial.duration_unit,
+      duration_value: Number(trial.duration_value || 7),
+      max_devices: Number(trial.max_devices || 1),
+      price_cents: 0,
+      claim_in_app: true,
+      card_required: false,
+      one_per_device: true,
+      one_per_customer: true,
+    } : null,
+    plans: (result.results || []).map((plan) => ({
+      plan_key: plan.plan_key,
+      name: plan.name,
+      duration_unit: plan.duration_unit,
+      duration_value: Number(plan.duration_value || 0),
+      max_devices: Number(plan.max_devices || 3),
+      currency: cleanString(plan.currency, 8) || "MYR",
+      price_cents: Number(plan.price_cents || 0),
+      compare_at_price_cents: Number(plan.compare_at_price_cents || 0),
+      is_featured: Number(plan.is_featured || 0) === 1,
+    })),
+  });
+}
+
+async function claimTrial(request, env) {
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+
+  const email = normalizeEmail(body.email);
+  const deviceId = cleanString(body.device_id, 300);
+  const deviceName = cleanString(body.device_name, 120);
+
+  if (!email) return badRequest("invalid_email");
+  if (!deviceId) return badRequest("device_id_required");
+
+  const deviceHash = await sha256Hex(deviceId);
+  const customerHash = await sha256Hex(email);
+
+  const deviceRedemption = await env.DB.prepare(
+    `SELECT id, license_id, customer_hash, device_hash
+       FROM trial_redemptions
+      WHERE product_id = ?1 AND device_hash = ?2
+      LIMIT 1`
+  ).bind("homika_pro", deviceHash).first();
+
+  const customerRedemption = await env.DB.prepare(
+    `SELECT id, license_id, customer_hash, device_hash
+       FROM trial_redemptions
+      WHERE product_id = ?1 AND customer_hash = ?2
+      LIMIT 1`
+  ).bind("homika_pro", customerHash).first();
+
+  if (deviceRedemption || customerRedemption) {
+    const sameRedemption =
+      deviceRedemption && customerRedemption && deviceRedemption.id === customerRedemption.id;
+
+    if (sameRedemption) {
+      const existingLicense = await getLicenseById(env, deviceRedemption.license_id);
+      if (existingLicense && evaluateLicense(existingLicense).valid) {
+        const current = await env.DB.prepare(
+          `SELECT id, status
+             FROM devices
+            WHERE license_id = ?1 AND device_hash = ?2
+            LIMIT 1`
+        ).bind(existingLicense.id, deviceHash).first();
+
+        if (current) {
+          await env.DB.prepare(
+            `UPDATE devices
+                SET status = 'active', device_name = ?1,
+                    last_seen_at = CURRENT_TIMESTAMP, deactivated_at = NULL
+              WHERE id = ?2`
+          ).bind(deviceName || null, current.id).run();
+        } else {
+          await env.DB.prepare(
+            `INSERT INTO devices (id, license_id, device_hash, device_name, status)
+             VALUES (?1, ?2, ?3, ?4, 'active')`
+          ).bind(crypto.randomUUID(), existingLicense.id, deviceHash, deviceName || null).run();
+        }
+        return activationResponse(env, existingLicense, deviceHash, true);
+      }
+
+      return json({ ok: false, error: "trial_already_used" }, 409);
+    }
+
+    if (deviceRedemption) {
+      return json({ ok: false, error: "trial_already_used_device" }, 409);
+    }
+    return json({ ok: false, error: "trial_already_used_customer" }, 409);
+  }
+
+  const plan = await env.DB.prepare(
+    `SELECT plan_key, duration_value, max_devices
+       FROM license_plans
+      WHERE product_id = ?1
+        AND plan_key = 'trial_7d'
+      LIMIT 1`
+  ).bind("homika_pro").first();
+
+  if (!plan || Number(plan.duration_value || 0) !== 7) {
+    return json({ ok: false, error: "trial_unavailable" }, 503);
+  }
+
+  const customerId = crypto.randomUUID();
+  const licenseId = crypto.randomUUID();
+  const redemptionId = crypto.randomUUID();
+  const licenseKey = generateTrialLicenseKey();
+  const expiresAt = formatSqliteTimestamp(Date.now() + (7 * 24 * 60 * 60 * 1000));
+
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO customers (id, email) VALUES (?1, ?2)`
+      ).bind(customerId, email),
+      env.DB.prepare(
+        `INSERT INTO licenses (
+           id, license_key, product_id, customer_id, status,
+           expires_at, max_devices, plan_type, plan_key
+         ) VALUES (?1, ?2, 'homika_pro', ?3, 'active', ?4, 1, 'trial', 'trial_7d')`
+      ).bind(licenseId, licenseKey, customerId, expiresAt),
+      env.DB.prepare(
+        `INSERT INTO devices (
+           id, license_id, device_hash, device_name, status
+         ) VALUES (?1, ?2, ?3, ?4, 'active')`
+      ).bind(crypto.randomUUID(), licenseId, deviceHash, deviceName || null),
+      env.DB.prepare(
+        `INSERT INTO trial_redemptions (
+           id, product_id, license_id, customer_id,
+           customer_hash, device_hash, redeemed_at, expires_at
+         ) VALUES (?1, 'homika_pro', ?2, ?3, ?4, ?5, CURRENT_TIMESTAMP, ?6)`
+      ).bind(redemptionId, licenseId, customerId, customerHash, deviceHash, expiresAt),
+    ]);
+  } catch (err) {
+    console.warn("Trial claim race or insert failure", err);
+
+    const racedDevice = await env.DB.prepare(
+      `SELECT id FROM trial_redemptions
+        WHERE product_id = 'homika_pro' AND device_hash = ?1 LIMIT 1`
+    ).bind(deviceHash).first();
+    if (racedDevice) return json({ ok: false, error: "trial_already_used_device" }, 409);
+
+    const racedCustomer = await env.DB.prepare(
+      `SELECT id FROM trial_redemptions
+        WHERE product_id = 'homika_pro' AND customer_hash = ?1 LIMIT 1`
+    ).bind(customerHash).first();
+    if (racedCustomer) return json({ ok: false, error: "trial_already_used_customer" }, 409);
+
+    throw err;
+  }
+
+  const license = await getLicenseById(env, licenseId);
+  if (!license) throw new Error("Trial licence was not created");
+  return activationResponse(env, license, deviceHash, false);
 }
 
 async function activateLicense(request, env) {
@@ -1436,6 +1634,27 @@ function normalizeLicenseKey(value) {
   const raw = cleanString(value, 80);
   if (!raw) return "";
   return raw.toUpperCase().replace(/\s+/g, "").replace(/[^A-Z0-9-]/g, "");
+}
+
+
+function normalizeEmail(value) {
+  const email = cleanString(value, 254).toLowerCase();
+  if (!email) return "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "";
+  return email;
+}
+
+function generateTrialLicenseKey() {
+  const bytes = new Uint8Array(10);
+  crypto.getRandomValues(bytes);
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let token = "";
+  for (const byte of bytes) token += alphabet[byte % alphabet.length];
+  return `HMK-TRIAL-${token.slice(0, 5)}-${token.slice(5, 10)}`;
+}
+
+function formatSqliteTimestamp(epochMillis) {
+  return new Date(epochMillis).toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
 }
 
 function normalizePlanType(value) {

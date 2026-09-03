@@ -61,8 +61,8 @@
     <string name="license_device_limit_activation_body">Lesen ini sah, tetapi semua slot peranti sedang digunakan.</string>
     <string name="license_verify_title">Sahkan Homika Pro</string>
     <string name="license_verify_activation_body">Homika memerlukan sambungan internet untuk mengesahkan lesen ini sebelum akses boleh diteruskan.</string>
-    <string name="license_annual_primary_title">Tahunan · Pelan awam utama</string>
-    <string name="license_annual_primary_body">Satu lesen tahunan menyokong sehingga %1$d peranti. Akses percubaan atau bulanan boleh dikeluarkan secara berasingan apabila tersedia.</string>
+    <string name="license_annual_primary_title">Pelan fleksibel · 1 bulan hingga 1 tahun</string>
+    <string name="license_annual_primary_body">Pilih tempoh yang sesuai. Semua pelan berbayar menyokong sehingga %1$d peranti dengan fungsi Homika Pro yang sama.</string>
     <string name="license_buy_online">Beli Homika Pro secara online</string>
     <string name="license_renew_online">Perbaharui Homika Pro secara online</string>
     <string name="license_upgrade_online">Naik taraf ke Homika Pro</string>
@@ -80,7 +80,7 @@
     <string name="license_renewal_due_title">Masa untuk renew semakin dekat</string>
     <string name="license_renewal_due_body">Lesen ini menghampiri tarikh tamat. Renew lebih awal untuk mengelakkan akses Homika Pro terhenti.</string>
     <string name="license_trial_status_title">Akses percubaan</string>
-    <string name="license_trial_status_body">Trial anda masih aktif. Naik taraf ke pelan tahunan apabila bersedia untuk terus menggunakan Homika Pro.</string>
+    <string name="license_trial_status_body">Trial anda masih aktif. Pilih mana-mana pelan berbayar apabila bersedia untuk terus menggunakan Homika Pro.</string>
 
     <string name="license_device_management_title">Peranti aktif</string>
     <string name="license_device_slots_summary">%1$d daripada %2$d aktif · %3$d slot tersedia</string>
@@ -102,5 +102,22 @@
     <string name="license_devices_error_missing">Peranti itu sudah tidak aktif atau tidak lagi wujud.</string>
     <string name="license_devices_error_current">Gunakan “Nyahaktifkan peranti ini” untuk peranti semasa.</string>
     <string name="license_devices_error_generic">Senarai peranti tidak dapat dikemas kini. Cuba lagi.</string>
+
+    <string name="license_trial_offer_title">Cuba Homika Pro percuma 7 hari</string>
+    <string name="license_trial_offer_body">Tak perlu kad. Trial membuka semua fungsi Homika Pro pada satu peranti selama 7 hari. Setiap peranti dan email hanya boleh claim sekali.</string>
+    <string name="license_trial_email">Email untuk trial</string>
+    <string name="license_trial_start">Mulakan trial percuma 7 hari</string>
+    <string name="license_trial_once_note">Satu trial untuk setiap peranti dan email. Uninstall atau clear data tidak memberikan trial baharu.</string>
+    <string name="license_trial_error_email_title">Masukkan email yang sah</string>
+    <string name="license_trial_error_email_body">Alamat email yang sah diperlukan untuk memulakan trial percuma.</string>
+    <string name="license_trial_error_device_title">Trial sudah digunakan pada peranti ini</string>
+    <string name="license_trial_error_device_body">Peranti ini sudah pernah claim trial Homika Pro. Pilih pelan berbayar untuk teruskan.</string>
+    <string name="license_trial_error_customer_title">Trial sudah digunakan untuk email ini</string>
+    <string name="license_trial_error_customer_body">Email ini sudah pernah claim trial Homika Pro. Pilih pelan berbayar untuk teruskan.</string>
+    <string name="license_trial_error_used_title">Trial percuma sudah selesai</string>
+    <string name="license_trial_error_used_body">Trial terdahulu untuk peranti dan email ini telah tamat. Pilih pelan berbayar untuk teruskan.</string>
+    <string name="license_trial_error_unavailable_title">Trial tidak tersedia sementara waktu</string>
+    <string name="license_trial_error_unavailable_body">Servis trial belum tersedia sekarang. Anda masih boleh aktifkan lesen berbayar.</string>
+    <string name="license_trial_error_network_body">Sambungkan internet untuk memulakan trial percuma.</string>
 
 </resources>
