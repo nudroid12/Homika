@@ -139,6 +139,14 @@
     <string name="license_store_error_verify">Sahkan lesen ini secara online dahulu, kemudian buka checkout semula.</string>
     <string name="license_store_error_generic">Checkout Homika tidak dapat disediakan. Cuba lagi sebentar lagi.</string>
 
+    <string name="license_entry_body">Mulakan percuma selama 7 hari, atau log masuk jika anda sudah membeli Homika Pro.</string>
+    <string name="license_entry_already_purchased">Sudah membeli?</string>
+    <string name="license_entry_buy">Beli Homika Pro</string>
+    <string name="license_purchase_page_title">Aktifkan Homika Pro</string>
+    <string name="license_purchase_page_body">Gunakan email pembelian dan PIN 6 digit yang anda tetapkan semasa checkout.</string>
+    <string name="license_use_licence_key">Guna Licence Key sebaliknya</string>
+    <string name="license_back_to_start">Kembali ke mula</string>
+    <string name="license_back_to_purchase">Kembali ke Email + PIN</string>
     <string name="license_purchase_login_title">Sudah bayar? Aktifkan dengan email + PIN 6 digit</string>
     <string name="license_purchase_login_body">Guna email yang sama dan PIN Pembelian 6 digit yang anda tetapkan semasa checkout Homika. Tak perlu tunggu email atau Telegram.</string>
     <string name="license_purchase_email">Email pembelian</string>

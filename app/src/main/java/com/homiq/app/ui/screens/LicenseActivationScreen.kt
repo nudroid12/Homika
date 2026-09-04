@@ -4,15 +4,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -21,7 +22,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,12 +46,11 @@ import com.homiq.app.data.license.LicenseCommercialLinks
 import com.homiq.app.data.license.LicenseUiState
 import com.homiq.app.ui.components.HomikaBrandMark
 import com.homiq.app.ui.viewmodel.LicenseCheckoutUiState
-import com.homiq.app.ui.theme.HomikaInk
-import com.homiq.app.ui.theme.HomikaMintSoft
-import com.homiq.app.ui.theme.HomikaOutline
-import com.homiq.app.ui.theme.HomikaSurface
-import com.homiq.app.ui.theme.HomikaTeal
-import com.homiq.app.ui.theme.HomikaTealDeep
+
+private const val ENTRY_HOME = "home"
+private const val ENTRY_TRIAL = "trial"
+private const val ENTRY_PURCHASE = "purchase"
+private const val ENTRY_LICENCE_KEY = "licence_key"
 
 @Composable
 fun LicenseActivationScreen(
@@ -69,6 +68,7 @@ fun LicenseActivationScreen(
     var purchaseEmail by rememberSaveable { mutableStateOf("") }
     var purchasePin by rememberSaveable { mutableStateOf("") }
     var trialEmail by rememberSaveable { mutableStateOf("") }
+    var entryPage by rememberSaveable { mutableStateOf(ENTRY_HOME) }
     val uriHandler = LocalUriHandler.current
 
     LaunchedEffect(state.licenseKey) {
@@ -95,329 +95,337 @@ fun LicenseActivationScreen(
         ) {
             Column(
                 modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HomikaBrandMark()
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = stringResource(R.string.license_homika_pro),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = stringResource(R.string.license_commercial_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                HomikaActivationHeader(
+                    compact = state.access == LicenseAccess.ACTIVATION_REQUIRED ||
+                        state.access == LicenseAccess.INVALID,
+                )
 
-            if (state.access == LicenseAccess.CHECKING) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(22.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        CircularProgressIndicator()
-                        Text(
-                            text = stringResource(R.string.license_checking),
-                            style = MaterialTheme.typography.titleMedium,
+                if (state.access == LicenseAccess.CHECKING) {
+                    CheckingCard()
+                    return@Column
+                }
+
+                when {
+                    state.access == LicenseAccess.EXPIRED -> {
+                        ExpiredAccessContent(
+                            state = state,
+                            checkoutState = checkoutState,
+                            onOpenRenewal = onOpenRenewal,
+                            onRetry = onRetry,
                         )
-                        Text(
-                            text = stringResource(R.string.license_checking_body),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        LicenceKeyForm(
+                            licenseKey = licenseKey,
+                            busy = state.busy,
+                            onLicenseKeyChange = { licenseKey = sanitizeLicenceKey(it) },
+                            onActivate = { onActivate(licenseKey) },
                         )
                     }
-                }
-                return@Column
-            }
 
-            Text(
-                text = activationHeadline(state.access),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text = activationBody(state.access),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+                    state.access == LicenseAccess.ACTIVATION_REQUIRED ||
+                        state.access == LicenseAccess.INVALID -> {
+                        when (entryPage) {
+                            ENTRY_TRIAL -> TrialActivationPage(
+                                state = state,
+                                email = trialEmail,
+                                onEmailChange = { trialEmail = it.take(254) },
+                                onClaim = { onClaimTrial(trialEmail) },
+                                onBack = { entryPage = ENTRY_HOME },
+                            )
 
-            LicenseStatusCard(state)
+                            ENTRY_PURCHASE -> PurchaseActivationPage(
+                                state = state,
+                                email = purchaseEmail,
+                                pin = purchasePin,
+                                onEmailChange = { purchaseEmail = it.take(254) },
+                                onPinChange = { value ->
+                                    purchasePin = value.filter(Char::isDigit).take(6)
+                                },
+                                onActivate = { onActivatePurchase(purchaseEmail, purchasePin) },
+                                onUseLicenceKey = { entryPage = ENTRY_LICENCE_KEY },
+                                onBack = { entryPage = ENTRY_HOME },
+                            )
 
-            if (state.access == LicenseAccess.EXPIRED) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.license_renew_same_code_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                        Text(
-                            text = stringResource(R.string.license_renew_same_code_body),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                        if (state.licenseHint.isNotBlank()) {
-                            Text(
-                                text = stringResource(
-                                    R.string.license_current_code_hint,
-                                    state.licenseHint,
-                                ),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            ENTRY_LICENCE_KEY -> LicenceKeyActivationPage(
+                                state = state,
+                                licenseKey = licenseKey,
+                                onLicenseKeyChange = { licenseKey = sanitizeLicenceKey(it) },
+                                onActivate = { onActivate(licenseKey) },
+                                onBack = { entryPage = ENTRY_PURCHASE },
+                            )
+
+                            else -> ActivationEntryLanding(
+                                onStartTrial = { entryPage = ENTRY_TRIAL },
+                                onAlreadyPurchased = { entryPage = ENTRY_PURCHASE },
+                                onBuy = {
+                                    runCatching {
+                                        uriHandler.openUri(LicenseCommercialLinks.BUY_URL)
+                                    }
+                                },
                             )
                         }
                     }
-                }
 
-                Button(
-                    onClick = onOpenRenewal,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.busy && !checkoutState.loading,
-                ) {
-                    if (checkoutState.loading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                    else -> {
+                        Text(
+                            text = activationHeadline(state.access),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground,
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.license_store_opening))
-                    } else {
-                        Text(stringResource(R.string.license_renew_online))
+                        Text(
+                            text = activationBody(state.access),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        LicenseStatusCard(state)
+
+                        if (state.access == LicenseAccess.DEVICE_LIMIT) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.license_device_limit_help),
+                                    modifier = Modifier.padding(14.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        LicenceKeyForm(
+                            licenseKey = licenseKey,
+                            busy = state.busy,
+                            onLicenseKeyChange = { licenseKey = sanitizeLicenceKey(it) },
+                            onActivate = { onActivate(licenseKey) },
+                        )
+
+                        if (state.access == LicenseAccess.NEEDS_INTERNET) {
+                            TextButton(
+                                onClick = onRetry,
+                                modifier = Modifier.align(Alignment.CenterHorizontally),
+                                enabled = !state.busy,
+                            ) {
+                                Text(stringResource(R.string.license_retry))
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(
+                                        R.string.license_device_allowance,
+                                        state.maxDevices,
+                                    ),
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Text(
+                                    text = stringResource(R.string.license_offline_note),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
-
-                checkoutState.errorCode?.let {
-                    Text(
-                        text = checkoutErrorText(it),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = onRetry,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.busy,
-                ) {
-                    if (state.busy) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Text(stringResource(R.string.license_renew_verify_button))
-                }
-            } else if (
-                state.access == LicenseAccess.ACTIVATION_REQUIRED ||
-                state.access == LicenseAccess.INVALID
-            ) {
-                PurchaseLoginCard(
-                    email = purchaseEmail,
-                    pin = purchasePin,
-                    busy = state.busy,
-                    onEmailChange = { purchaseEmail = it.take(254) },
-                    onPinChange = { value -> purchasePin = value.filter(Char::isDigit).take(6) },
-                    onActivate = { onActivatePurchase(purchaseEmail, purchasePin) },
-                )
-
-                TrialOfferCard(
-                    email = trialEmail,
-                    busy = state.busy,
-                    onEmailChange = { trialEmail = it.take(254) },
-                    onClaim = { onClaimTrial(trialEmail) },
-                )
-
-                AnnualOfferCard(state.maxDevices)
-                OutlinedButton(
-                    onClick = {
-                        runCatching { uriHandler.openUri(LicenseCommercialLinks.BUY_URL) }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.license_buy_online))
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = stringResource(R.string.license_existing_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = stringResource(R.string.license_existing_body),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
+        }
+    }
+}
 
-            if (state.access == LicenseAccess.DEVICE_LIMIT) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                ) {
-                    Text(
-                        text = stringResource(R.string.license_device_limit_help),
-                        modifier = Modifier.padding(14.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+@Composable
+private fun HomikaActivationHeader(compact: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        HomikaBrandMark()
+        Spacer(Modifier.width(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = stringResource(R.string.license_homika_pro),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            if (!compact) {
                 Text(
-                    text = stringResource(R.string.license_key_backup_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(R.string.license_key_backup_body),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = stringResource(R.string.license_commercial_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+}
 
+@Composable
+private fun CheckingCard() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(
+            modifier = Modifier.padding(22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            CircularProgressIndicator()
+            Text(
+                text = stringResource(R.string.license_checking),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(R.string.license_checking_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActivationEntryLanding(
+    onStartTrial: () -> Unit,
+    onAlreadyPurchased: () -> Unit,
+    onBuy: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Spacer(Modifier.size(4.dp))
+        Text(
+            text = stringResource(R.string.license_activate_title),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = stringResource(R.string.license_entry_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.size(4.dp))
+
+        Button(
+            onClick = onStartTrial,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.license_trial_start))
+        }
+
+        OutlinedButton(
+            onClick = onAlreadyPurchased,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.license_entry_already_purchased))
+        }
+
+        TextButton(
+            onClick = onBuy,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        ) {
+            Text(stringResource(R.string.license_entry_buy))
+        }
+    }
+}
+
+@Composable
+private fun TrialActivationPage(
+    state: LicenseUiState,
+    email: String,
+    onEmailChange: (String) -> Unit,
+    onClaim: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        DetailPageTitle(
+            title = stringResource(R.string.license_trial_offer_title),
+            body = stringResource(R.string.license_trial_offer_body),
+        )
+        LicenseStatusCard(state)
+
+        NeutralFormSurface {
             OutlinedTextField(
-                value = licenseKey,
-                onValueChange = { value ->
-                    licenseKey = value
-                        .uppercase()
-                        .filter { it.isLetterOrDigit() || it == '-' || it == ' ' }
-                        .take(80)
-                },
+                value = email,
+                onValueChange = onEmailChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.license_code)) },
-                placeholder = { Text("HMK-XXXX-XXXX-XXXX") },
+                label = { Text(stringResource(R.string.license_trial_email)) },
+                placeholder = { Text("nama@email.com") },
                 singleLine = true,
                 enabled = !state.busy,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Done,
+                ),
             )
-
             Button(
-                onClick = { onActivate(licenseKey) },
+                onClick = onClaim,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = licenseKey.isNotBlank() && !state.busy,
+                enabled = email.isNotBlank() && !state.busy,
             ) {
                 if (state.busy) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(18.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
                         strokeWidth = 2.dp,
                     )
-                } else {
-                    Text(stringResource(R.string.license_activate_button))
+                    Spacer(Modifier.width(8.dp))
                 }
+                Text(stringResource(R.string.license_trial_start))
             }
-
-            if (state.access == LicenseAccess.NEEDS_INTERNET) {
-                TextButton(
-                    onClick = onRetry,
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    enabled = !state.busy,
-                ) {
-                    Text(stringResource(R.string.license_retry))
-                }
-            }
-
-            if (
-                state.access != LicenseAccess.ACTIVATION_REQUIRED &&
-                state.access != LicenseAccess.INVALID
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.license_device_allowance,
-                                state.maxDevices,
-                            ),
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        Text(
-                            text = stringResource(R.string.license_offline_note),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
+            Text(
+                text = stringResource(R.string.license_trial_once_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
+
+        BackToStartButton(onBack)
     }
-        }
-    }
+}
 
 @Composable
-private fun checkoutErrorText(code: String): String =
-    when (code) {
-        "checkout_network" -> stringResource(R.string.license_store_error_network)
-        "license_required", "invalid_activation_token", "token_device_mismatch" ->
-            stringResource(R.string.license_store_error_verify)
-        else -> stringResource(R.string.license_store_error_generic)
-    }
-
-@Composable
-private fun PurchaseLoginCard(
+private fun PurchaseActivationPage(
+    state: LicenseUiState,
     email: String,
     pin: String,
-    busy: Boolean,
     onEmailChange: (String) -> Unit,
     onPinChange: (String) -> Unit,
     onActivate: () -> Unit,
+    onUseLicenceKey: () -> Unit,
+    onBack: () -> Unit,
 ) {
-    Surface(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.license_purchase_login_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = stringResource(R.string.license_purchase_login_body),
-                style = MaterialTheme.typography.bodySmall,
-            )
+        DetailPageTitle(
+            title = stringResource(R.string.license_purchase_page_title),
+            body = stringResource(R.string.license_purchase_page_body),
+        )
+        LicenseStatusCard(state)
+
+        NeutralFormSurface {
             OutlinedTextField(
                 value = email,
                 onValueChange = onEmailChange,
@@ -425,7 +433,7 @@ private fun PurchaseLoginCard(
                 label = { Text(stringResource(R.string.license_purchase_email)) },
                 placeholder = { Text("nama@email.com") },
                 singleLine = true,
-                enabled = !busy,
+                enabled = !state.busy,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Next,
@@ -438,7 +446,7 @@ private fun PurchaseLoginCard(
                 label = { Text(stringResource(R.string.license_purchase_pin)) },
                 placeholder = { Text("••••••") },
                 singleLine = true,
-                enabled = !busy,
+                enabled = !state.busy,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.NumberPassword,
@@ -448,9 +456,9 @@ private fun PurchaseLoginCard(
             Button(
                 onClick = onActivate,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = email.isNotBlank() && pin.length == 6 && !busy,
+                enabled = email.isNotBlank() && pin.length == 6 && !state.busy,
             ) {
-                if (busy) {
+                if (state.busy) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
@@ -463,125 +471,262 @@ private fun PurchaseLoginCard(
             Text(
                 text = stringResource(R.string.license_purchase_pin_note),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        TextButton(
+            onClick = onUseLicenceKey,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            enabled = !state.busy,
+        ) {
+            Text(stringResource(R.string.license_use_licence_key))
+        }
+
+        BackToStartButton(onBack)
+    }
+}
+
+@Composable
+private fun LicenceKeyActivationPage(
+    state: LicenseUiState,
+    licenseKey: String,
+    onLicenseKeyChange: (String) -> Unit,
+    onActivate: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        DetailPageTitle(
+            title = stringResource(R.string.license_key_backup_title),
+            body = stringResource(R.string.license_key_backup_body),
+        )
+        LicenseStatusCard(state)
+        LicenceKeyForm(
+            licenseKey = licenseKey,
+            busy = state.busy,
+            onLicenseKeyChange = onLicenseKeyChange,
+            onActivate = onActivate,
+            showIntro = false,
+        )
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            enabled = !state.busy,
+        ) {
+            Text(stringResource(R.string.license_back_to_purchase))
         }
     }
 }
 
 @Composable
-private fun TrialOfferCard(
-    email: String,
-    busy: Boolean,
-    onEmailChange: (String) -> Unit,
-    onClaim: () -> Unit,
+private fun DetailPageTitle(
+    title: String,
+    body: String,
 ) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun NeutralFormSurface(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = HomikaTeal,
-        contentColor = HomikaSurface,
-        border = BorderStroke(1.dp, HomikaTealDeep),
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.license_trial_offer_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = HomikaSurface,
-            )
-            Text(
-                text = stringResource(R.string.license_trial_offer_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = HomikaSurface,
-            )
-            OutlinedTextField(
-                value = email,
-                onValueChange = onEmailChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.license_trial_email)) },
-                placeholder = { Text("nama@email.com") },
-                singleLine = true,
-                enabled = !busy,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Done,
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    disabledContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                    focusedTextColor = HomikaSurface,
-                    unfocusedTextColor = HomikaSurface,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                ),
-            )
-            Button(
-                onClick = onClaim,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = email.isNotBlank() && !busy,
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = HomikaMintSoft,
-                    contentColor = HomikaTealDeep,
-                    disabledContainerColor = HomikaMintSoft.copy(alpha = 0.45f),
-                    disabledContentColor = HomikaTealDeep.copy(alpha = 0.60f),
-                ),
-            ) {
-                if (busy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = HomikaTealDeep,
-                        strokeWidth = 2.dp,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(stringResource(R.string.license_trial_start))
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun BackToStartButton(onBack: () -> Unit) {
+    TextButton(
+        onClick = onBack,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(R.string.license_back_to_start))
+    }
+}
+
+@Composable
+private fun LicenceKeyForm(
+    licenseKey: String,
+    busy: Boolean,
+    onLicenseKeyChange: (String) -> Unit,
+    onActivate: () -> Unit,
+    showIntro: Boolean = true,
+) {
+    NeutralFormSurface {
+        if (showIntro) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.license_key_backup_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.license_key_backup_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            Text(
-                text = stringResource(R.string.license_trial_once_note),
-                style = MaterialTheme.typography.labelSmall,
-                color = HomikaSurface,
-            )
+        }
+
+        OutlinedTextField(
+            value = licenseKey,
+            onValueChange = onLicenseKeyChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.license_code)) },
+            placeholder = { Text("HMK-XXXX-XXXX-XXXX") },
+            singleLine = true,
+            enabled = !busy,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        )
+
+        Button(
+            onClick = onActivate,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = licenseKey.isNotBlank() && !busy,
+        ) {
+            if (busy) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(stringResource(R.string.license_activate_button))
+            }
         }
     }
 }
 
 @Composable
-private fun AnnualOfferCard(maxDevices: Int) {
+private fun ExpiredAccessContent(
+    state: LicenseUiState,
+    checkoutState: LicenseCheckoutUiState,
+    onOpenRenewal: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Text(
+        text = activationHeadline(state.access),
+        style = MaterialTheme.typography.headlineMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onBackground,
+    )
+    Text(
+        text = activationBody(state.access),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    LicenseStatusCard(state)
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = HomikaMintSoft,
-        contentColor = HomikaInk,
-        border = BorderStroke(1.dp, HomikaOutline),
+        color = MaterialTheme.colorScheme.secondaryContainer,
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = stringResource(R.string.license_annual_primary_title),
+                text = stringResource(R.string.license_renew_same_code_title),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = HomikaInk,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
             Text(
-                text = stringResource(R.string.license_annual_primary_body, maxDevices),
+                text = stringResource(R.string.license_renew_same_code_body),
                 style = MaterialTheme.typography.bodySmall,
-                color = HomikaInk,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
+            if (state.licenseHint.isNotBlank()) {
+                Text(
+                    text = stringResource(
+                        R.string.license_current_code_hint,
+                        state.licenseHint,
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
         }
     }
+
+    Button(
+        onClick = onOpenRenewal,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !state.busy && !checkoutState.loading,
+    ) {
+        if (checkoutState.loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.license_store_opening))
+        } else {
+            Text(stringResource(R.string.license_renew_online))
+        }
+    }
+
+    checkoutState.errorCode?.let {
+        Text(
+            text = checkoutErrorText(it),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+
+    OutlinedButton(
+        onClick = onRetry,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !state.busy,
+    ) {
+        if (state.busy) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(stringResource(R.string.license_renew_verify_button))
+    }
 }
+
+private fun sanitizeLicenceKey(value: String): String =
+    value
+        .uppercase()
+        .filter { it.isLetterOrDigit() || it == '-' || it == ' ' }
+        .take(80)
+
+@Composable
+private fun checkoutErrorText(code: String): String =
+    when (code) {
+        "checkout_network" -> stringResource(R.string.license_store_error_network)
+        "license_required", "invalid_activation_token", "token_device_mismatch" ->
+            stringResource(R.string.license_store_error_verify)
+        else -> stringResource(R.string.license_store_error_generic)
+    }
 
 @Composable
 private fun activationHeadline(access: LicenseAccess): String =

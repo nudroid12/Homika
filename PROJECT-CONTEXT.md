@@ -785,3 +785,36 @@ One-time recovery after installing 13C.9:
 - `prepare-worker-deploy-config.mjs` now rebases the existing `main` path relative to the generated config directory (normally `../src/index.js`).
 - 13C.9 secret/variable persistence hardening remains unchanged.
 - No D1 migration. No Android, licensing, sync, payment, or store behavior changes.
+
+## 24. Patch 13C.8.1 - Activation UI Flow Simplification
+
+Purpose: restore the established Homika visual language on the Android activation experience and simplify first-run choice hierarchy without changing licensing behavior.
+
+Changed files:
+- `app/src/main/java/com/homiq/app/ui/screens/LicenseActivationScreen.kt`
+- `app/src/main/res/values/homika_license_strings.xml`
+- `app/src/main/res/values-ms/homika_license_strings.xml`
+- `PROJECT-CONTEXT.md`
+
+Locked UI behavior:
+- Activation landing is intentionally simple: `Start 7-day free trial`, `Already purchased?`, and a small `Buy Homika Pro` action.
+- Trial opens its own compact page with email + Start Trial.
+- Already Purchased opens its own compact Email + 6-digit PIN page.
+- Licence Key is a secondary fallback reached from the purchase page via `Use Licence Key instead`.
+- Detail pages have explicit back navigation rather than stacking every activation method on one screen.
+- Existing Homika Material theme/color tokens are used directly. No new palette and no hardcoded replacement theme were introduced.
+- Large teal Trial/Purchase cards were removed. Neutral theme surfaces are used; brand color remains the normal Material primary accent/CTA.
+
+Not changed:
+- Purchase PIN API / backend v21 hardening
+- licence activation rules, signed token path, device limits, trial ledger
+- checkout/store/manual QR/admin approval
+- Brevo/Telegram notification logic
+- cloud backup/sync
+- updater/signing
+- D1 schema (no migration required)
+
+Validation:
+- XML resources parse successfully for EN/MS.
+- Kotlin delimiter and referenced resource checks performed locally.
+- GitHub Actions remains the final Android compile gate.
