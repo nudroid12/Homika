@@ -16,7 +16,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 21,
+          version: 22,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -31,6 +31,10 @@ export default {
           worker_deploy_config_hardening: true,
           worker_dashboard_vars_preserved: true,
           worker_required_secret_guard: true,
+          production_audit_hardening: true,
+          https_checkout_enforced: true,
+          admin_secret_constant_time: true,
+          cors_sync_headers_complete: true,
           store_catalog: true,
           checkout_intents: true,
           authenticated_renewal_checkout: true,
@@ -201,10 +205,10 @@ export default {
 
 
 function homikaStoreUrl(env) {
-  // HOMIKA_STORE_URL remains an optional override. The canonical production
-  // Pages URL is compiled in so Wrangler deployments cannot break checkout
-  // merely because a dashboard text variable was not preserved.
-  const configured = cleanString(env.HOMIKA_STORE_URL, 2000);
+  // HOMIKA_STORE_URL remains an optional HTTPS override. The canonical
+  // production Pages URL is compiled in so missing, malformed or insecure
+  // dashboard values cannot downgrade checkout or break the purchase path.
+  const configured = safeHttpsUrl(cleanString(env.HOMIKA_STORE_URL, 2000));
   return configured || DEFAULT_HOMIKA_STORE_URL;
 }
 
@@ -213,7 +217,7 @@ function homikaPurchaseRedirect(requestUrl, env) {
   if (configured) {
     try {
       const target = new URL(configured);
-      if (target.protocol === "https:" || target.protocol === "http:") {
+      if (target.protocol === "https:") {
         for (const [name, value] of requestUrl.searchParams.entries()) {
           if (!target.searchParams.has(name)) target.searchParams.set(name, value);
         }
@@ -1305,7 +1309,9 @@ function authorizeAdmin(request, env) {
   const configured = cleanString(env.HOMIKA_ADMIN_SECRET, 2000);
   if (!configured) return { ok: false, response: json({ ok: false, error: "admin_not_configured" }, 503) };
   const supplied = cleanString(request.headers.get("x-homika-admin-secret"), 2000);
-  if (!supplied || supplied !== configured) return { ok: false, response: json({ ok: false, error: "unauthorized" }, 401) };
+  if (!supplied || !constantTimeStringEqual(supplied, configured)) {
+    return { ok: false, response: json({ ok: false, error: "unauthorized" }, 401) };
+  }
   return { ok: true };
 }
 
@@ -1414,7 +1420,7 @@ function checkoutUrlFor(request, env, token) {
   if (configured) {
     try {
       const url = new URL(configured);
-      if (url.protocol === "https:" || url.protocol === "http:") {
+      if (url.protocol === "https:") {
         url.searchParams.set("checkout", token);
         url.searchParams.set("action", "renew");
         return url.toString();
@@ -3495,8 +3501,8 @@ function json(data, status = 200) {
 function corsHeaders() {
   return {
     "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type,authorization,x-homika-device-id,x-homika-backup-created-at,x-homika-record-count,x-homika-format-version,x-homika-database-schema-version,x-homika-payment-secret,x-homika-admin-secret",
+    "access-control-allow-methods": "GET,POST,PUT,OPTIONS",
+    "access-control-allow-headers": "content-type,authorization,x-homika-device-id,x-homika-backup-created-at,x-homika-record-count,x-homika-format-version,x-homika-database-schema-version,x-homika-content-sha256,x-homika-sync-updated-at,x-homika-payment-secret,x-homika-admin-secret",
     "cache-control": "no-store",
   };
 }

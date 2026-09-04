@@ -12,3 +12,6 @@ app/build/
 **/*.keystore
 google-services.json
 secrets.properties
+
+# Local production signing/secret backup material must never enter Git.
+LOCAL-ONLY-DO-NOT-UPLOAD/

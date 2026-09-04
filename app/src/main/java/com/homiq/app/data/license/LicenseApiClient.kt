@@ -209,7 +209,7 @@ class LicenseApiClient(
                 val json = response.json
                 if (response.status in 200..299 && json?.optBoolean("ok", false) == true) {
                     val checkoutUrl = json.optString("checkout_url").trim()
-                    if (checkoutUrl.startsWith("https://") || checkoutUrl.startsWith("http://")) {
+                    if (checkoutUrl.startsWith("https://")) {
                         LicenseCheckoutResult.Success(checkoutUrl)
                     } else {
                         LicenseCheckoutResult.Rejected("invalid_checkout_url")

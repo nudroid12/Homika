@@ -857,3 +857,55 @@ Validation:
 - EN/MS XML resources parse successfully.
 - Kotlin delimiter/resource-reference checks performed locally.
 - GitHub Actions remains the final Android compile gate.
+
+## 26. Patch 15B - Final Production Audit + Release Hardening
+
+Purpose: feature-freeze audit before v1.0. No new user-facing feature is introduced.
+
+Static audit completed against the reconstructed latest Homika Pro source through Patch 15A:
+- Android application ID / signing-updater boundary reviewed.
+- activation token storage and verification reviewed.
+- Purchase Email + 6-digit PIN flow reviewed.
+- trial, paid device-limit and renewal server paths reviewed.
+- local backup/restore, Cloud Backup, Cloud Sync authentication/encryption/size limits reviewed.
+- Room migration path reviewed; no destructive fallback found.
+- Android manifest/exported components reviewed.
+- EN/MS referenced string resources verified present.
+- Store/Admin DOM rendering and payment-proof handling reviewed.
+- Worker deployment hardening and D1/R2 bindings were not redesigned.
+
+15B hardening changes:
+- Worker health version: 22.
+- Worker purchase redirect and renewal checkout URL generation now accept HTTPS only.
+- Android renewal checkout rejects non-HTTPS checkout URLs.
+- Admin secret verification uses the existing constant-time string comparison helper.
+- CORS now explicitly allows the existing PUT cloud-snapshot route and its `x-homika-content-sha256` / `x-homika-sync-updated-at` headers.
+- Store Pages changes Referrer Policy to `no-referrer` and adds a restrictive CSP compatible with local scripts/styles, Worker API calls, blob proof previews and HTTPS QR images.
+- Root `.gitignore` now excludes the complete `LOCAL-ONLY-DO-NOT-UPLOAD/` directory.
+- Patch `DELETE_FILES.txt` removes that directory from the repository tree if it was ever copied there accidentally. Keep the real signing-key backup safely outside GitHub. Never regenerate the Homika production signing key as part of this cleanup.
+- Added `docs/FINAL-PRODUCTION-AUDIT.md` with the final 12-step signed-APK acceptance test.
+
+Not changed:
+- licence plan prices or expiry math
+- Purchase PIN hashing/pepper/account schema
+- trial ledger / trial eligibility rules
+- device limit logic
+- payment approval business logic
+- Cloud Backup encryption format
+- Cloud Sync merger/coordinator/protocol
+- Money, Calendar, Booking or Reports behavior
+- updater signing certificate / release key
+- D1 schema
+
+Migration: none.
+
+Validation performed locally:
+- `node --check backend/src/index.js`
+- `node --check backend/scripts/prepare-worker-deploy-config.mjs`
+- `node --check store/app.js`
+- `node --check store/admin.js`
+- Android resource XML parse
+- referenced EN/MS Android string resources present
+- targeted Kotlin delimiter/resource inspection
+
+GitHub Actions remains the final Android compile/sign gate. After a green build, complete every item in `docs/FINAL-PRODUCTION-AUDIT.md` on the signed APK. If all pass, freeze features and proceed to v1.0. If any fail, only focused 15C regression/release-polish fixes should follow.
