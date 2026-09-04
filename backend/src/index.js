@@ -16,7 +16,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 19,
+          version: 20,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -44,6 +44,10 @@ export default {
           customer_telegram_notifications: true,
           customer_telegram_bot_shared_with_admin: true,
           customer_telegram_auto_webhook_setup: true,
+          purchase_account_activation: true,
+          purchase_pin_digits: 6,
+          purchase_pin_rate_limit: true,
+          purchase_pin_pepper_configured: Boolean(cleanString(env.HOMIKA_PURCHASE_PIN_PEPPER, 2000)),
           rejection_reason_required: true,
           same_license_renewal: true,
           exact_plan_key_in_token: true,
@@ -117,6 +121,10 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/v1/trials/claim") {
         return claimTrial(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/purchases/activate") {
+        return activatePurchaseAccount(request, env);
       }
 
       if (request.method === "POST" && url.pathname === "/v1/licenses/activate") {
@@ -317,8 +325,10 @@ async function createStoreCheckoutIntent(request, env) {
   const action = cleanString(body.action, 20).toLowerCase();
   const email = normalizeEmail(body.email);
   const planKey = cleanString(body.plan_key, 40).toLowerCase();
+  const purchasePin = normalizePurchasePin(body.purchase_pin);
   if (!["buy", "renew"].includes(action)) return badRequest("invalid_checkout_action");
   if (!email) return badRequest("invalid_email");
+  if (!purchasePin) return badRequest("purchase_pin_required");
 
   const plan = await getSalePlan(env, planKey);
   if (!plan) return json({ ok: false, error: "plan_not_available" }, 404);
@@ -333,7 +343,9 @@ async function createStoreCheckoutIntent(request, env) {
     licenseId = license.id;
   }
 
-  const intent = await insertCheckoutIntent(env, { action, licenseId, email, plan });
+  const credential = await prepareCheckoutPurchaseCredential(env, email, purchasePin, action, licenseId);
+  if (!credential.ok) return json({ ok: false, error: credential.error }, credential.status || 400);
+  const intent = await insertCheckoutIntent(env, { action, licenseId, email, plan, credential });
   return json({ ok: true, checkout: await checkoutIntentJson(env, intent) }, 201);
 }
 
@@ -381,8 +393,10 @@ async function selectStoreCheckoutPlan(request, env) {
   const token = cleanString(body.checkout_token, 160);
   const planKey = cleanString(body.plan_key, 40).toLowerCase();
   const email = normalizeEmail(body.email);
+  const purchasePin = normalizePurchasePin(body.purchase_pin);
   if (!token) return badRequest("checkout_token_required");
   if (!email) return badRequest("invalid_email");
+  if (!purchasePin) return badRequest("purchase_pin_required");
 
   const plan = await getSalePlan(env, planKey);
   if (!plan) return json({ ok: false, error: "plan_not_available" }, 404);
@@ -392,12 +406,17 @@ async function selectStoreCheckoutPlan(request, env) {
   if (checkoutHasExpired(intent)) return json({ ok: false, error: "checkout_expired" }, 410);
   if (intent.status !== "pending") return json({ ok: false, error: "checkout_not_editable" }, 409);
 
+  const credential = await prepareCheckoutPurchaseCredential(env, email, purchasePin, intent.action, intent.license_id || null);
+  if (!credential.ok) return json({ ok: false, error: credential.error }, credential.status || 400);
+
   await env.DB.prepare(
     `UPDATE checkout_intents
         SET customer_email = ?1, plan_key = ?2, amount_cents = ?3,
-            currency = ?4, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?5 AND status = 'pending'`
-  ).bind(email, plan.plan_key, Number(plan.price_cents), cleanString(plan.currency, 8) || "MYR", intent.id).run();
+            currency = ?4, purchase_pin_salt = ?5, purchase_pin_hash = ?6,
+            purchase_pin_version = ?7, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?8 AND status = 'pending'`
+  ).bind(email, plan.plan_key, Number(plan.price_cents), cleanString(plan.currency, 8) || "MYR",
+    credential.salt, credential.hash, credential.version, intent.id).run();
 
   return json({ ok: true, checkout: await checkoutIntentJson(env, await getCheckoutIntent(env, token)) });
 }
@@ -647,6 +666,7 @@ async function getCheckoutIntentById(env, id) {
             customer_email, plan_key, amount_cents, currency, status,
             provider, provider_reference, target_expires_at,
             resulting_license_id, resulting_license_key,
+            purchase_pin_salt, purchase_pin_hash, purchase_pin_version,
             created_at, updated_at, expires_at, paid_at, completed_at
        FROM checkout_intents WHERE id = ?1 LIMIT 1`
   ).bind(id).first();
@@ -683,9 +703,9 @@ function customerTelegramDecisionText(checkout, decision, rejectionReason = "") 
       `Order: ${orderRef}`,
       `Pelan: ${plan} · ${amount}`,
       "",
-      key ? `Licence Key: ${key}` : "Licence Key sedang disediakan.",
+      "Buka Homika → Activate purchase dan masukkan email pembelian + PIN 6 digit anda.",
       "",
-      "Buka Homika → Activate Licence dan masukkan Licence Key di atas.",
+      key ? `Licence Key backup: ${key}` : "Licence Key backup sedang disediakan.",
       "Simpan mesej ini sebagai rujukan.",
     ].join("\n");
   }
@@ -820,7 +840,7 @@ function escapeEmailHtml(value) {
 }
 
 function emailShell(title, bodyHtml) {
-  return `<!doctype html><html><body style="margin:0;background:#f4f6f4;font-family:Arial,sans-serif;color:#18221e"><div style="max-width:620px;margin:0 auto;padding:28px 18px"><div style="background:#fff;border:1px solid #dde3df;border-radius:18px;padding:28px"><div style="font-size:13px;font-weight:700;letter-spacing:.08em;color:#24735a">HOMIKA PRO</div><h1 style="font-size:24px;margin:10px 0 18px">${escapeEmailHtml(title)}</h1>${bodyHtml}<p style="margin-top:28px;font-size:12px;line-height:1.55;color:#6c756f">Email ini ialah notifikasi transaksi Homika. Email anda bukan credential untuk mengakses Homika Cloud. Jangan kongsi Licence Key dengan orang lain.</p></div></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f4f6f4;font-family:Arial,sans-serif;color:#18221e"><div style="max-width:620px;margin:0 auto;padding:28px 18px"><div style="background:#fff;border:1px solid #dde3df;border-radius:18px;padding:28px"><div style="font-size:13px;font-weight:700;letter-spacing:.08em;color:#24735a">HOMIKA PRO</div><h1 style="font-size:24px;margin:10px 0 18px">${escapeEmailHtml(title)}</h1>${bodyHtml}<p style="margin-top:28px;font-size:12px;line-height:1.55;color:#6c756f">Email ini ialah notifikasi transaksi Homika. Cara utama untuk aktifkan pembelian ialah email + PIN 6 digit yang anda tetapkan semasa checkout. Jangan kongsi PIN atau Licence Key dengan orang lain.</p></div></div></body></html>`;
 }
 
 function approvalEmailContent(checkout) {
@@ -838,12 +858,12 @@ function approvalEmailContent(checkout) {
         `Pelan: ${plan}`,
         `Jumlah: ${amount}`,
         "",
-        `Licence Key: ${key}`,
+        "Buka Homika > Activate purchase, masukkan email pembelian dan PIN 6 digit yang anda tetapkan semasa checkout.",
         "",
-        "Buka Homika > Activate Licence, masukkan Licence Key di atas dan aktifkan pada peranti anda.",
-        "Simpan email ini untuk rujukan dan jangan kongsi Licence Key dengan orang lain.",
+        `Licence Key backup: ${key}`,
+        "Simpan email ini untuk rujukan. Licence Key hanya diperlukan sebagai pilihan backup.",
       ].join("\n"),
-      html: emailShell("Bayaran diluluskan ✓", `<p style="line-height:1.65">Bayaran anda telah disahkan dan Homika Pro sudah sedia untuk diaktifkan.</p><p><strong>Order:</strong> ${escapeEmailHtml(orderRef)}<br><strong>Pelan:</strong> ${escapeEmailHtml(plan)}<br><strong>Jumlah:</strong> ${escapeEmailHtml(amount)}</p><div style="margin:22px 0;padding:18px;background:#f1f7f4;border-radius:14px"><div style="font-size:12px;color:#647069;margin-bottom:6px">LICENCE KEY</div><div style="font-family:monospace;font-size:20px;font-weight:700;word-break:break-all">${escapeEmailHtml(key)}</div></div><p style="line-height:1.65">Buka <strong>Homika → Activate Licence</strong>, masukkan Licence Key di atas dan aktifkan pada peranti anda.</p>`),
+      html: emailShell("Bayaran diluluskan ✓", `<p style="line-height:1.65">Bayaran anda telah disahkan dan Homika Pro sudah sedia untuk diaktifkan.</p><p><strong>Order:</strong> ${escapeEmailHtml(orderRef)}<br><strong>Pelan:</strong> ${escapeEmailHtml(plan)}<br><strong>Jumlah:</strong> ${escapeEmailHtml(amount)}</p><p style="line-height:1.65">Buka <strong>Homika → Activate purchase</strong>, kemudian masukkan email pembelian dan <strong>PIN 6 digit</strong> yang anda tetapkan semasa checkout.</p><div style="margin:22px 0;padding:18px;background:#f1f7f4;border-radius:14px"><div style="font-size:12px;color:#647069;margin-bottom:6px">LICENCE KEY BACKUP</div><div style="font-family:monospace;font-size:20px;font-weight:700;word-break:break-all">${escapeEmailHtml(key)}</div></div>`),
     };
   }
   return {
@@ -1258,6 +1278,8 @@ function paymentCompletionErrorCode(err) {
     "invalid_email",
     "invalid_plan_duration",
     "unsupported_plan_duration",
+    "purchase_pin_not_configured",
+    "purchase_account_license_mismatch",
   ];
   for (const code of known) {
     if (message.includes(code)) return code;
@@ -1298,18 +1320,20 @@ function proofExtensionFor(contentType) {
 const MANUAL_PAYMENT_MAX_PROOF_BYTES = 2 * 1024 * 1024;
 const MANUAL_PAYMENT_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-async function insertCheckoutIntent(env, { action, licenseId = null, email = "", plan = null }) {
+async function insertCheckoutIntent(env, { action, licenseId = null, email = "", plan = null, credential = null }) {
   const id = crypto.randomUUID();
   const token = generateCheckoutToken();
   const expiresAt = formatSqliteTimestamp(Date.now() + STORE_CHECKOUT_TTL_MS);
   await env.DB.prepare(
     `INSERT INTO checkout_intents (
        id, public_token, product_id, action, license_id,
-       customer_email, plan_key, amount_cents, currency, status, expires_at
-     ) VALUES (?1, ?2, 'homika_pro', ?3, ?4, ?5, ?6, ?7, ?8, 'pending', ?9)`
+       customer_email, plan_key, amount_cents, currency, status, expires_at,
+       purchase_pin_salt, purchase_pin_hash, purchase_pin_version
+     ) VALUES (?1, ?2, 'homika_pro', ?3, ?4, ?5, ?6, ?7, ?8, 'pending', ?9, ?10, ?11, ?12)`
   ).bind(id, token, action, licenseId, email || null, plan?.plan_key || null,
     plan ? Number(plan.price_cents) : null,
-    plan ? (cleanString(plan.currency, 8) || "MYR") : "MYR", expiresAt).run();
+    plan ? (cleanString(plan.currency, 8) || "MYR") : "MYR", expiresAt,
+    credential?.salt || null, credential?.hash || null, credential?.version || null).run();
   return getCheckoutIntent(env, token);
 }
 
@@ -1362,6 +1386,7 @@ async function checkoutIntentJson(env, intent) {
       linked: telegramLink?.status === "linked" && Boolean(telegramLink?.chat_id),
       status: telegramLink?.status || "not_linked",
     },
+    purchase_login_ready: Boolean(intent.purchase_pin_hash && intent.customer_email),
     ...(intent.status === "completed" && intent.action === "buy" ? { license_key: intent.resulting_license_key || null } : {}),
   };
 }
@@ -1425,7 +1450,10 @@ async function authenticateLicenseIdentityRequest(request, env) {
 async function completePaidCheckout(env, originalIntent, provider, providerPaymentId) {
   let intent = await getCheckoutIntent(env, originalIntent.public_token);
   if (!intent) throw new Error("checkout_not_found");
-  if (intent.status === "completed") return intent;
+  if (intent.status === "completed") {
+    await ensurePurchaseAccountForCompletedCheckout(env, intent);
+    return getCheckoutIntent(env, intent.public_token);
+  }
   const plan = await getSalePlan(env, intent.plan_key);
   if (!plan) throw new Error("plan_not_available");
 
@@ -1550,6 +1578,8 @@ async function completePaidCheckout(env, originalIntent, provider, providerPayme
       throw new Error("provider_payment_conflict");
     }
   }
+
+  await upsertPurchaseAccountFromCheckout(env, intent, license.id);
 
   await env.DB.prepare(
     `UPDATE checkout_intents SET status = 'completed', provider = ?1, provider_reference = ?2,
@@ -1889,6 +1919,269 @@ async function trialStorageReadiness(env) {
   }
 }
 
+function normalizePurchasePin(value) {
+  const pin = cleanString(String(value ?? ""), 12);
+  return /^\d{6}$/.test(pin) ? pin : "";
+}
+
+function purchasePinPepper(env) {
+  return cleanString(env.HOMIKA_PURCHASE_PIN_PEPPER, 2000);
+}
+
+function randomBase64Url(byteLength = 16) {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncodeBytes(bytes);
+}
+
+async function purchaseEmailHash(email) {
+  return sha256Hex(normalizeEmail(email));
+}
+
+async function purchasePinDigest(env, emailHash, salt, pin) {
+  const pepper = purchasePinPepper(env);
+  if (!pepper) throw new Error("purchase_pin_not_configured");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(pepper),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const payload = `homika-purchase-pin-v1|${emailHash}|${salt}|${pin}`;
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return base64UrlEncodeBytes(new Uint8Array(signature));
+}
+
+function constantTimeStringEqual(a, b) {
+  const left = String(a || "");
+  const right = String(b || "");
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i += 1) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return diff === 0;
+}
+
+async function getPurchaseAccountByEmailHash(env, emailHash) {
+  return env.DB.prepare(
+    `SELECT id, product_id, email_hash, pin_salt, pin_hash, pin_version, license_id,
+            created_at, updated_at, last_login_at
+       FROM purchase_accounts
+      WHERE product_id = 'homika_pro' AND email_hash = ?1 LIMIT 1`
+  ).bind(emailHash).first();
+}
+
+async function purchasePinLockState(env, emailHash) {
+  const row = await env.DB.prepare(
+    `SELECT failed_attempts, locked_until FROM purchase_pin_security
+      WHERE product_id = 'homika_pro' AND email_hash = ?1 LIMIT 1`
+  ).bind(emailHash).first();
+  const lockedUntil = parseSqliteTimestamp(row?.locked_until);
+  return {
+    failedAttempts: Number(row?.failed_attempts || 0),
+    locked: Boolean(lockedUntil && lockedUntil.getTime() > Date.now()),
+  };
+}
+
+async function recordPurchasePinFailure(env, emailHash) {
+  const state = await purchasePinLockState(env, emailHash);
+  const attempts = state.failedAttempts + 1;
+  const lock = attempts >= 5;
+  const lockedUntil = lock ? formatSqliteTimestamp(Date.now() + 15 * 60 * 1000) : null;
+  await env.DB.prepare(
+    `INSERT INTO purchase_pin_security (product_id, email_hash, failed_attempts, locked_until, updated_at)
+     VALUES ('homika_pro', ?1, ?2, ?3, CURRENT_TIMESTAMP)
+     ON CONFLICT(product_id, email_hash) DO UPDATE SET
+       failed_attempts = excluded.failed_attempts,
+       locked_until = excluded.locked_until,
+       updated_at = CURRENT_TIMESTAMP`
+  ).bind(emailHash, attempts, lockedUntil).run();
+  return lock;
+}
+
+async function resetPurchasePinFailures(env, emailHash) {
+  await env.DB.prepare(
+    `INSERT INTO purchase_pin_security (product_id, email_hash, failed_attempts, locked_until, updated_at)
+     VALUES ('homika_pro', ?1, 0, NULL, CURRENT_TIMESTAMP)
+     ON CONFLICT(product_id, email_hash) DO UPDATE SET
+       failed_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP`
+  ).bind(emailHash).run();
+}
+
+async function verifyStoredPurchasePin(env, emailHash, salt, expectedHash, pin) {
+  if (!salt || !expectedHash) return false;
+  const actual = await purchasePinDigest(env, emailHash, salt, pin);
+  return constantTimeStringEqual(actual, expectedHash);
+}
+
+async function prepareCheckoutPurchaseCredential(env, email, pin, action, licenseId = null) {
+  if (!purchasePinPepper(env)) return { ok: false, error: "purchase_pin_not_configured", status: 503 };
+  const emailHash = await purchaseEmailHash(email);
+  const lock = await purchasePinLockState(env, emailHash);
+  if (lock.locked) return { ok: false, error: "purchase_pin_locked", status: 429 };
+  const account = await getPurchaseAccountByEmailHash(env, emailHash);
+  if (account) {
+    const valid = await verifyStoredPurchasePin(env, emailHash, account.pin_salt, account.pin_hash, pin);
+    if (!valid) {
+      const nowLocked = await recordPurchasePinFailure(env, emailHash);
+      return { ok: false, error: nowLocked ? "purchase_pin_locked" : "purchase_pin_invalid", status: nowLocked ? 429 : 401 };
+    }
+    await resetPurchasePinFailures(env, emailHash);
+    if (action === "buy" && account.license_id) {
+      return { ok: false, error: "purchase_account_exists_use_renewal", status: 409 };
+    }
+    if (action === "renew" && account.license_id && licenseId && String(account.license_id) !== String(licenseId)) {
+      return { ok: false, error: "purchase_account_license_mismatch", status: 409 };
+    }
+  }
+  const salt = randomBase64Url(16);
+  const hash = await purchasePinDigest(env, emailHash, salt, pin);
+  return { ok: true, salt, hash, version: 1, emailHash };
+}
+
+async function upsertPurchaseAccountFromCheckout(env, intent, licenseId) {
+  if (!intent?.customer_email || !intent?.purchase_pin_salt || !intent?.purchase_pin_hash || !licenseId) return;
+  if (!purchasePinPepper(env)) throw new Error("purchase_pin_not_configured");
+  const emailHash = await purchaseEmailHash(intent.customer_email);
+  const existing = await getPurchaseAccountByEmailHash(env, emailHash);
+  if (existing && existing.license_id && String(existing.license_id) !== String(licenseId)) {
+    throw new Error("purchase_account_license_mismatch");
+  }
+  await env.DB.prepare(
+    `INSERT INTO purchase_accounts (
+       id, product_id, email_hash, pin_salt, pin_hash, pin_version, license_id, created_at, updated_at
+     ) VALUES (?1, 'homika_pro', ?2, ?3, ?4, ?5, ?6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     ON CONFLICT(product_id, email_hash) DO UPDATE SET
+       pin_salt = excluded.pin_salt,
+       pin_hash = excluded.pin_hash,
+       pin_version = excluded.pin_version,
+       license_id = excluded.license_id,
+       updated_at = CURRENT_TIMESTAMP`
+  ).bind(crypto.randomUUID(), emailHash, intent.purchase_pin_salt, intent.purchase_pin_hash,
+    Number(intent.purchase_pin_version || 1), licenseId).run();
+  await resetPurchasePinFailures(env, emailHash);
+}
+
+async function ensurePurchaseAccountForCompletedCheckout(env, intent) {
+  if (!intent?.purchase_pin_hash || !intent?.customer_email) return;
+  const licenseId = intent.resulting_license_id || intent.license_id;
+  if (!licenseId) return;
+  const license = await getLicenseById(env, licenseId);
+  if (!license) return;
+  await upsertPurchaseAccountFromCheckout(env, intent, license.id);
+}
+
+async function latestCheckoutForPurchaseCredentials(env, email, emailHash, pin) {
+  const rows = await env.DB.prepare(
+    `SELECT id, public_token, product_id, action, license_id, customer_email, plan_key,
+            amount_cents, currency, status, provider, provider_reference, target_expires_at,
+            resulting_license_id, resulting_license_key, purchase_pin_salt, purchase_pin_hash,
+            purchase_pin_version, created_at, updated_at, expires_at, paid_at, completed_at
+       FROM checkout_intents
+      WHERE product_id = 'homika_pro'
+        AND lower(trim(customer_email)) = lower(trim(?1))
+        AND purchase_pin_hash IS NOT NULL
+      ORDER BY created_at DESC LIMIT 12`
+  ).bind(email).all();
+  for (const row of (rows.results || [])) {
+    if (await verifyStoredPurchasePin(env, emailHash, row.purchase_pin_salt, row.purchase_pin_hash, pin)) return row;
+  }
+  return null;
+}
+
+async function activatePurchaseAccount(request, env) {
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+  if (!purchasePinPepper(env)) return json({ ok: false, error: "purchase_pin_not_configured" }, 503);
+  const email = normalizeEmail(body.email);
+  const pin = normalizePurchasePin(body.purchase_pin);
+  const deviceId = cleanString(body.device_id, 300);
+  const deviceName = cleanString(body.device_name, 120);
+  if (!email) return badRequest("purchase_invalid_email");
+  if (!pin) return badRequest("purchase_pin_required");
+  if (!deviceId) return badRequest("device_id_required");
+
+  const emailHash = await purchaseEmailHash(email);
+  const lock = await purchasePinLockState(env, emailHash);
+  if (lock.locked) return json({ ok: false, error: "purchase_pin_locked" }, 429);
+
+  let account = await getPurchaseAccountByEmailHash(env, emailHash);
+  if (account) {
+    const valid = await verifyStoredPurchasePin(env, emailHash, account.pin_salt, account.pin_hash, pin);
+    if (!valid) {
+      const nowLocked = await recordPurchasePinFailure(env, emailHash);
+      return json({ ok: false, error: nowLocked ? "purchase_pin_locked" : "purchase_credentials_invalid" }, nowLocked ? 429 : 401);
+    }
+    await resetPurchasePinFailures(env, emailHash);
+    if (!account.license_id) return json({ ok: false, error: "purchase_not_approved" }, 409);
+    const license = await getLicenseById(env, account.license_id);
+    if (!license) return json({ ok: false, error: "purchase_account_not_ready" }, 409);
+    await env.DB.prepare(`UPDATE purchase_accounts SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?1`).bind(account.id).run();
+    return activateLicenseForDevice(env, license, deviceId, deviceName);
+  }
+
+  const intent = await latestCheckoutForPurchaseCredentials(env, email, emailHash, pin);
+  if (!intent) {
+    const nowLocked = await recordPurchasePinFailure(env, emailHash);
+    return json({ ok: false, error: nowLocked ? "purchase_pin_locked" : "purchase_credentials_invalid" }, nowLocked ? 429 : 401);
+  }
+  await resetPurchasePinFailures(env, emailHash);
+
+  const submission = await getManualPaymentSubmissionForCheckout(env, intent.id);
+  if (submission?.status === "rejected") {
+    return json({ ok: false, error: "purchase_rejected", rejection_reason: submission.admin_note || "Bukti pembayaran tidak dapat disahkan." }, 409);
+  }
+  if (intent.status !== "completed") {
+    return json({ ok: false, error: submission?.status === "submitted" ? "purchase_pending" : "purchase_not_submitted" }, 409);
+  }
+
+  const licenseId = intent.resulting_license_id || intent.license_id;
+  const license = licenseId ? await getLicenseById(env, licenseId) : null;
+  if (!license) return json({ ok: false, error: "purchase_account_not_ready" }, 409);
+  await upsertPurchaseAccountFromCheckout(env, intent, license.id);
+  account = await getPurchaseAccountByEmailHash(env, emailHash);
+  if (account?.id) await env.DB.prepare(`UPDATE purchase_accounts SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?1`).bind(account.id).run();
+  return activateLicenseForDevice(env, license, deviceId, deviceName);
+}
+
+async function activateLicenseForDevice(env, license, deviceId, deviceName) {
+  const state = evaluateLicense(license);
+  if (!state.valid) return licenseError(state.error, 403, license);
+
+  const deviceHash = await sha256Hex(deviceId);
+  const existing = await env.DB.prepare(
+    `SELECT id, status FROM devices WHERE license_id = ?1 AND device_hash = ?2 LIMIT 1`
+  ).bind(license.id, deviceHash).first();
+
+  if (existing) {
+    if (existing.status !== "active") {
+      const activeDevices = await countActiveDevices(env, license.id);
+      if (activeDevices >= Number(license.max_devices)) {
+        return json({ ok: false, error: "device_limit_reached", max_devices: Number(license.max_devices), active_devices: activeDevices }, 409);
+      }
+    }
+    await env.DB.prepare(
+      `UPDATE devices SET status = 'active', device_name = ?1, last_seen_at = CURRENT_TIMESTAMP,
+              deactivated_at = NULL WHERE id = ?2`
+    ).bind(deviceName || null, existing.id).run();
+    return activationResponse(env, license, deviceHash, true);
+  }
+
+  const activeDevices = await countActiveDevices(env, license.id);
+  if (activeDevices >= Number(license.max_devices)) {
+    return json({ ok: false, error: "device_limit_reached", max_devices: Number(license.max_devices), active_devices: activeDevices }, 409);
+  }
+  const insert = await env.DB.prepare(
+    `INSERT INTO devices (id, license_id, device_hash, device_name, status)
+     SELECT ?1, ?2, ?3, ?4, 'active'
+     WHERE (SELECT COUNT(*) FROM devices WHERE license_id = ?2 AND status = 'active') < ?5`
+  ).bind(crypto.randomUUID(), license.id, deviceHash, deviceName || null, Number(license.max_devices)).run();
+  if (!insert.meta?.changes) {
+    return json({ ok: false, error: "device_limit_reached", max_devices: Number(license.max_devices), active_devices: await countActiveDevices(env, license.id) }, 409);
+  }
+  return activationResponse(env, license, deviceHash, false);
+}
+
 async function activateLicense(request, env) {
   const body = await readJson(request);
   if (!body) return badRequest("invalid_json");
@@ -1902,81 +2195,7 @@ async function activateLicense(request, env) {
 
   const license = await getLicenseByKey(env, licenseKey);
   if (!license) return licenseError("license_not_found", 404);
-
-  const state = evaluateLicense(license);
-  if (!state.valid) return licenseError(state.error, 403, license);
-
-  const deviceHash = await sha256Hex(deviceId);
-  const existing = await env.DB.prepare(
-    `SELECT id, status
-       FROM devices
-      WHERE license_id = ?1 AND device_hash = ?2
-      LIMIT 1`
-  ).bind(license.id, deviceHash).first();
-
-  if (existing) {
-    if (existing.status !== "active") {
-      const activeDevices = await countActiveDevices(env, license.id);
-      if (activeDevices >= Number(license.max_devices)) {
-        return json({
-          ok: false,
-          error: "device_limit_reached",
-          max_devices: Number(license.max_devices),
-          active_devices: activeDevices,
-        }, 409);
-      }
-    }
-
-    await env.DB.prepare(
-      `UPDATE devices
-          SET status = 'active',
-              device_name = ?1,
-              last_seen_at = CURRENT_TIMESTAMP,
-              deactivated_at = NULL
-        WHERE id = ?2`
-    ).bind(deviceName || null, existing.id).run();
-
-    return activationResponse(env, license, deviceHash, true);
-  }
-
-  const activeDevices = await countActiveDevices(env, license.id);
-  if (activeDevices >= Number(license.max_devices)) {
-    return json({
-      ok: false,
-      error: "device_limit_reached",
-      max_devices: Number(license.max_devices),
-      active_devices: activeDevices,
-    }, 409);
-  }
-
-  const insert = await env.DB.prepare(
-    `INSERT INTO devices (
-       id, license_id, device_hash, device_name, status
-     )
-     SELECT ?1, ?2, ?3, ?4, 'active'
-     WHERE (
-       SELECT COUNT(*)
-       FROM devices
-       WHERE license_id = ?2 AND status = 'active'
-     ) < ?5`
-  ).bind(
-    crypto.randomUUID(),
-    license.id,
-    deviceHash,
-    deviceName || null,
-    Number(license.max_devices),
-  ).run();
-
-  if (!insert.meta?.changes) {
-    return json({
-      ok: false,
-      error: "device_limit_reached",
-      max_devices: Number(license.max_devices),
-      active_devices: await countActiveDevices(env, license.id),
-    }, 409);
-  }
-
-  return activationResponse(env, license, deviceHash, false);
+  return activateLicenseForDevice(env, license, deviceId, deviceName);
 }
 
 async function validateLicense(request, env) {

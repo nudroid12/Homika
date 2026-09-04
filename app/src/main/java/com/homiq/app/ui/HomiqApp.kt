@@ -131,6 +131,7 @@ fun HomiqApp() {
         LicenseActivationScreen(
             state = licenseState,
             onActivate = licenseViewModel::activate,
+            onActivatePurchase = licenseViewModel::activatePurchase,
             onClaimTrial = licenseViewModel::claimTrial,
             onRetry = licenseViewModel::retry,
             checkoutState = licenseCheckoutState,

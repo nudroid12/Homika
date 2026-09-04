@@ -65,6 +65,19 @@ class LicenseViewModel(
         }
     }
 
+    fun activatePurchase(email: String, pin: String) {
+        if (mutableState.value.busy) return
+        mutableState.value = mutableState.value.copy(
+            busy = true,
+            errorCode = null,
+            errorDetail = null,
+        )
+
+        viewModelScope.launch {
+            mutableState.value = repository.activatePurchase(email, pin).copy(busy = false)
+        }
+    }
+
     fun claimTrial(email: String) {
         if (mutableState.value.busy) return
         mutableState.value = mutableState.value.copy(

@@ -22,6 +22,22 @@ class LicenseApiClient(
                 .put("device_name", deviceName),
         )
 
+
+    suspend fun activatePurchase(
+        email: String,
+        purchasePin: String,
+        deviceId: String,
+        deviceName: String,
+    ): LicenseApiResult =
+        postActivation(
+            path = "/v1/purchases/activate",
+            payload = JSONObject()
+                .put("email", email)
+                .put("purchase_pin", purchasePin)
+                .put("device_id", deviceId)
+                .put("device_name", deviceName),
+        )
+
     suspend fun claimTrial(
         email: String,
         deviceId: String,
@@ -255,6 +271,7 @@ class LicenseApiClient(
                     expiresAt = json?.optString("expires_at")?.takeIf { it.isNotBlank() },
                     maxDevices = json?.optInt("max_devices", -1)?.takeIf { it >= 0 },
                     activeDevices = json?.optInt("active_devices", -1)?.takeIf { it >= 0 },
+                    detail = json?.optString("rejection_reason")?.takeIf { it.isNotBlank() },
                 )
             }
         }

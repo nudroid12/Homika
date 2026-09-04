@@ -36,6 +36,7 @@ data class LicenseUiState(
     val lastValidatedAtMillis: Long = 0L,
     val busy: Boolean = false,
     val errorCode: String? = null,
+    val errorDetail: String? = null,
     val usingOfflineGrace: Boolean = false,
 )
 
@@ -73,6 +74,7 @@ sealed interface LicenseApiResult {
         val expiresAt: String? = null,
         val maxDevices: Int? = null,
         val activeDevices: Int? = null,
+        val detail: String? = null,
     ) : LicenseApiResult
 
     data object NetworkError : LicenseApiResult

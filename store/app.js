@@ -25,6 +25,8 @@ const dialogSummary=document.querySelector('#dialog-summary');
 const checkoutResult=document.querySelector('#checkout-result');
 const checkoutForm=document.querySelector('#checkout-form');
 const checkoutEmail=document.querySelector('#checkout-email');
+const checkoutPin=document.querySelector('#checkout-pin');
+const checkoutPinConfirm=document.querySelector('#checkout-pin-confirm');
 const checkoutCreate=document.querySelector('#checkout-create');
 const paymentPanel=document.querySelector('#payment-panel');
 const paymentQr=document.querySelector('#payment-qr');
@@ -48,6 +50,7 @@ function money(c){return `RM${(Number(c||0)/100).toFixed(0)}`}
 function saving(p){return Math.max(0,Number(p.compare_at_price_cents||0)-Number(p.price_cents||0))}
 function labelFor(p){return labels[p.plan_key]||p.name||p.plan_key}
 function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function checkoutErrorMessage(code){return ({purchase_pin_required:'PIN mesti tepat 6 digit.',purchase_pin_invalid:'PIN tidak sepadan dengan akaun pembelian email ini.',purchase_pin_locked:'Terlalu banyak cubaan PIN salah. Tunggu kira-kira 15 minit.',purchase_pin_not_configured:'Servis PIN Homika belum siap dikonfigurasi.',purchase_account_exists_use_renewal:'Email ini sudah mempunyai lesen Homika. Gunakan renewal, bukan pembelian baharu.',purchase_account_license_mismatch:'PIN/email ini dipaut kepada lesen Homika yang lain.',invalid_email:'Masukkan email yang sah.'})[code]||`Ralat checkout (${code||'error'}).`}
 async function copyValue(value,button,doneLabel){
   try{await navigator.clipboard.writeText(value);const before=button.textContent;button.textContent=doneLabel;setTimeout(()=>{button.textContent=before},1600)}
   catch(_){window.prompt('Salin:',value)}
@@ -92,13 +95,14 @@ function resetCheckoutDialog(){
   paymentPanel.classList.add('hidden');
   checkoutForm.classList.remove('hidden');
   proofForm.reset();
+  checkoutPin.value='';checkoutPinConfirm.value='';
   paymentStatus.innerHTML='';
 }
 
 function choosePlan(plan){
   state.selectedPlan=plan;
   dialogTitle.textContent=state.checkoutToken?'Upgrade / Renew Homika Pro':'Beli Homika Pro';
-  dialogCopy.textContent=state.checkoutToken?'Lesen semasa akan dikekalkan. Masukkan email untuk rekod pembelian.':'Masukkan email dahulu, kemudian bayar melalui QR.';
+  dialogCopy.textContent=state.checkoutToken?'Lesen semasa akan dikekalkan. Masukkan email dan PIN Pembelian 6 digit. Jika ini upgrade pertama daripada Trial, tetapkan PIN baru.':'Masukkan email dan tetapkan PIN Pembelian 6 digit, kemudian bayar melalui QR.';
   resetCheckoutDialog();
   dialog.showModal();
   checkoutEmail.focus();
@@ -184,7 +188,7 @@ function renderManualPayment(c){
   }
   if(submission.status==='submitted'){
     proofForm.classList.add('hidden');
-    paymentStatus.innerHTML=`<strong>Bayaran diterima ✓</strong><p>Bukti pembayaran sudah dihantar${submission.submitted_at?` pada ${escapeHtml(submission.submitted_at)}`:''}. Menunggu pengesahan manual. Tak perlu buat bayaran kali kedua.</p>${telegramOptInHtml(c)}<button class="status-link-button" type="button" data-copy-status-inline>Salin link semakan bayaran</button>`;
+    paymentStatus.innerHTML=`<strong>Bayaran diterima ✓</strong><p>Bukti pembayaran sudah dihantar${submission.submitted_at?` pada ${escapeHtml(submission.submitted_at)}`:''}. Menunggu pengesahan manual. Tak perlu buat bayaran kali kedua. Selepas diluluskan, buka Homika dan aktifkan menggunakan email + PIN 6 digit yang anda tetapkan.</p>${telegramOptInHtml(c)}<button class="status-link-button" type="button" data-copy-status-inline>Salin link semakan bayaran</button>`;
     paymentStatus.querySelector('[data-copy-status-inline]')?.addEventListener('click',e=>copyValue(checkoutStatusUrl(),e.currentTarget,'Link disalin ✓'));
     wireTelegramOptIn(c);
     return;
@@ -216,7 +220,7 @@ function renderCheckout(c){
     paymentPanel.classList.add('hidden');
     const statusUrl=checkoutStatusUrl();
     if(c.action==='buy'&&c.license_key){
-      checkoutResult.innerHTML=`<strong>Bayaran diluluskan ✓</strong><p>Homika Pro anda telah aktif. Ini Licence Key anda:</p><code class="customer-license-key">${escapeHtml(c.license_key)}</code><div class="checkout-result-actions"><button class="button primary" type="button" data-copy-license>Salin Licence Key</button><button class="button secondary" type="button" data-copy-status>Salin link semakan</button></div><p>Simpan Licence Key ini, kemudian buka Homika dan aktifkan lesen. Jika halaman ini ditutup, buka semula link semakan untuk melihat key ini lagi.</p>`;
+      checkoutResult.innerHTML=`<strong>Bayaran diluluskan ✓</strong><p>Homika Pro anda telah aktif. Buka Homika dan pilih <b>Aktifkan dengan email + PIN 6 digit</b>. Gunakan email pembelian ini dan PIN yang anda tetapkan semasa checkout.</p><div class="checkout-result-actions"><button class="button primary" type="button" data-copy-status>Salin link semakan</button></div><details class="license-backup-details"><summary>Licence Key backup</summary><code class="customer-license-key">${escapeHtml(c.license_key)}</code><button class="button secondary" type="button" data-copy-license>Salin Licence Key</button></details><p>Email dan Telegram hanyalah notifikasi tambahan. Aktivasi pembelian tidak bergantung padanya.</p>`;
       checkoutResult.querySelector('[data-copy-license]')?.addEventListener('click',e=>copyValue(c.license_key,e.currentTarget,'Licence Key disalin ✓'));
       checkoutResult.querySelector('[data-copy-status]')?.addEventListener('click',e=>copyValue(statusUrl,e.currentTarget,'Link disalin ✓'));
     }else{
@@ -231,13 +235,13 @@ function renderCheckout(c){
   }
 }
 
-async function createSelectedCheckout(email){
+async function createSelectedCheckout(email,purchasePin){
   const plan=state.selectedPlan;if(!plan)return;
   if(state.checkoutToken){
-    const b=await api('/v1/store/checkout/select-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({checkout_token:state.checkoutToken,plan_key:plan.plan_key,email})});
+    const b=await api('/v1/store/checkout/select-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({checkout_token:state.checkoutToken,plan_key:plan.plan_key,email,purchase_pin:purchasePin})});
     renderCheckout(b.checkout);startPolling();
   }else{
-    const b=await api('/v1/store/checkout-intents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'buy',plan_key:plan.plan_key,email})});
+    const b=await api('/v1/store/checkout-intents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'buy',plan_key:plan.plan_key,email,purchase_pin:purchasePin})});
     renderCheckout(b.checkout);startPolling();
   }
 }
@@ -290,9 +294,13 @@ function fileToBase64(file){
 checkoutForm.addEventListener('submit',async e=>{
   e.preventDefault();
   const email=checkoutEmail.value.trim().toLowerCase();if(!email)return;
+  const pin=checkoutPin.value.replace(/\D/g,'');
+  const confirm=checkoutPinConfirm.value.replace(/\D/g,'');
+  if(pin.length!==6){checkoutResult.classList.remove('hidden');checkoutResult.textContent='PIN mesti tepat 6 digit.';return}
+  if(pin!==confirm){checkoutResult.classList.remove('hidden');checkoutResult.textContent='Sahkan PIN mesti sama dengan PIN 6 digit.';return}
   checkoutCreate.disabled=true;checkoutCreate.textContent='Menyediakan…';
-  try{await createSelectedCheckout(email);checkoutForm.classList.add('hidden')}
-  catch(err){checkoutResult.classList.remove('hidden');checkoutResult.textContent=`Checkout tidak dapat disediakan (${err.code||'error'}).`}
+  try{await createSelectedCheckout(email,pin);checkoutForm.classList.add('hidden')}
+  catch(err){checkoutResult.classList.remove('hidden');checkoutResult.textContent=checkoutErrorMessage(err.code)}
   finally{checkoutCreate.disabled=false;checkoutCreate.textContent='Teruskan ke pembayaran QR'}
 });
 
@@ -326,14 +334,18 @@ document.querySelector('#renew-form').addEventListener('submit',async e=>{
   e.preventDefault();
   const email=document.querySelector('#renew-email').value.trim().toLowerCase();
   const lic=document.querySelector('#renew-license').value.trim().toUpperCase();
+  const pin=document.querySelector('#renew-pin').value.replace(/\D/g,'');
+  const pinConfirm=document.querySelector('#renew-pin-confirm').value.replace(/\D/g,'');
   const plan=state.plans.find(i=>i.plan_key===renewPlanEl.value);
   if(!email||!lic||!plan)return;
+  if(pin.length!==6){alert('PIN mesti tepat 6 digit.');return}
+  if(pin!==pinConfirm){alert('Sahkan PIN mesti sama.');return}
   try{
-    const b=await api('/v1/store/checkout-intents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'renew',email,license_key:lic,plan_key:plan.plan_key})});
+    const b=await api('/v1/store/checkout-intents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'renew',email,license_key:lic,plan_key:plan.plan_key,purchase_pin:pin})});
     persistCheckoutToken(b.checkout.token);state.selectedPlan=plan;
     dialogTitle.textContent='Renew Homika Pro';dialogCopy.textContent='Kod lesen yang sama akan digunakan selepas bayaran disahkan.';
     checkoutForm.classList.add('hidden');dialog.showModal();renderCheckout(b.checkout);startPolling();
-  }catch(err){alert(`Renewal tidak dapat disediakan (${err.code||'error'}).`)}
+  }catch(err){alert(checkoutErrorMessage(err.code))}
 });
 
 document.querySelector('.dialog-close').addEventListener('click',()=>dialog.close());

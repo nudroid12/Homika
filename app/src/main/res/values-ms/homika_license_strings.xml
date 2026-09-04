@@ -139,4 +139,31 @@
     <string name="license_store_error_verify">Sahkan lesen ini secara online dahulu, kemudian buka checkout semula.</string>
     <string name="license_store_error_generic">Checkout Homika tidak dapat disediakan. Cuba lagi sebentar lagi.</string>
 
+    <string name="license_purchase_login_title">Sudah bayar? Aktifkan dengan email + PIN 6 digit</string>
+    <string name="license_purchase_login_body">Guna email yang sama dan PIN Pembelian 6 digit yang anda tetapkan semasa checkout Homika. Tak perlu tunggu email atau Telegram.</string>
+    <string name="license_purchase_email">Email pembelian</string>
+    <string name="license_purchase_pin">PIN Pembelian 6 digit</string>
+    <string name="license_purchase_activate">Aktifkan pembelian</string>
+    <string name="license_purchase_pin_note">PIN tidak disimpan pada peranti selepas aktivasi. Had peranti dan perlindungan lesen bertandatangan kekal digunakan.</string>
+    <string name="license_key_backup_title">Licence Key sebagai backup</string>
+    <string name="license_key_backup_body">Jika anda sudah mempunyai Licence Key, anda masih boleh aktifkan lesen menggunakannya di sini.</string>
+    <string name="license_purchase_pending_title">Bayaran masih menunggu semakan</string>
+    <string name="license_purchase_pending_body">Resit anda sudah diterima. Jangan bayar kali kedua. Cuba aktifkan semula selepas admin meluluskan bayaran.</string>
+    <string name="license_purchase_rejected_title">Bayaran tidak dapat disahkan</string>
+    <string name="license_purchase_rejected_body">Order ini telah ditolak. Sila buat order baru dan muat naik resit pembayaran yang betul.</string>
+    <string name="license_purchase_rejected_body_with_reason">Sebab: %1$s. Sila buat order baru dan muat naik resit pembayaran yang betul.</string>
+    <string name="license_purchase_not_submitted_title">Bukti pembayaran belum dihantar</string>
+    <string name="license_purchase_not_submitted_body">Lengkapkan checkout QR dan muat naik resit pembayaran sebelum mengaktifkan pembelian ini.</string>
+    <string name="license_purchase_invalid_title">Email atau PIN tidak betul</string>
+    <string name="license_purchase_invalid_body">Gunakan email pembelian yang tepat dan PIN 6 digit yang anda tetapkan semasa checkout.</string>
+    <string name="license_purchase_locked_title">Terlalu banyak cubaan PIN salah</string>
+    <string name="license_purchase_locked_body">Log masuk pembelian dikunci sementara untuk keselamatan. Tunggu kira-kira 15 minit dan cuba lagi.</string>
+    <string name="license_purchase_unavailable_title">Aktivasi pembelian belum tersedia</string>
+    <string name="license_purchase_unavailable_body">Homika tidak dapat menyediakan log masuk pembelian sekarang. Bayaran dan lesen sedia ada tidak dipadam. Cuba lagi sebentar.</string>
+    <string name="license_purchase_network_title">Tidak dapat hubungi Homika</string>
+    <string name="license_purchase_network_body">Sambungan internet diperlukan untuk mengaktifkan pembelian menggunakan email dan PIN.</string>
+
+    <string name="license_purchase_invalid_email_body">Masukkan alamat email sah yang sama seperti digunakan semasa pembelian Homika.</string>
+    <string name="license_purchase_pin_required_body">Masukkan PIN Pembelian 6 digit yang tepat seperti ditetapkan semasa checkout.</string>
+
 </resources>

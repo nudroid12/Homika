@@ -38,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.homiq.app.R
 import com.homiq.app.data.license.LicenseAccess
@@ -56,6 +57,7 @@ import com.homiq.app.ui.theme.HomikaTealDeep
 fun LicenseActivationScreen(
     state: LicenseUiState,
     onActivate: (String) -> Unit,
+    onActivatePurchase: (String, String) -> Unit,
     onClaimTrial: (String) -> Unit,
     onRetry: () -> Unit,
     checkoutState: LicenseCheckoutUiState,
@@ -64,6 +66,8 @@ fun LicenseActivationScreen(
     modifier: Modifier = Modifier,
 ) {
     var licenseKey by rememberSaveable { mutableStateOf(state.licenseKey) }
+    var purchaseEmail by rememberSaveable { mutableStateOf("") }
+    var purchasePin by rememberSaveable { mutableStateOf("") }
     var trialEmail by rememberSaveable { mutableStateOf("") }
     val uriHandler = LocalUriHandler.current
 
@@ -232,6 +236,15 @@ fun LicenseActivationScreen(
                 state.access == LicenseAccess.ACTIVATION_REQUIRED ||
                 state.access == LicenseAccess.INVALID
             ) {
+                PurchaseLoginCard(
+                    email = purchaseEmail,
+                    pin = purchasePin,
+                    busy = state.busy,
+                    onEmailChange = { purchaseEmail = it.take(254) },
+                    onPinChange = { value -> purchasePin = value.filter(Char::isDigit).take(6) },
+                    onActivate = { onActivatePurchase(purchaseEmail, purchasePin) },
+                )
+
                 TrialOfferCard(
                     email = trialEmail,
                     busy = state.busy,
@@ -277,6 +290,19 @@ fun LicenseActivationScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.license_key_backup_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.license_key_backup_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             OutlinedTextField(
@@ -362,6 +388,86 @@ private fun checkoutErrorText(code: String): String =
             stringResource(R.string.license_store_error_verify)
         else -> stringResource(R.string.license_store_error_generic)
     }
+
+@Composable
+private fun PurchaseLoginCard(
+    email: String,
+    pin: String,
+    busy: Boolean,
+    onEmailChange: (String) -> Unit,
+    onPinChange: (String) -> Unit,
+    onActivate: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.license_purchase_login_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = stringResource(R.string.license_purchase_login_body),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = email,
+                onValueChange = onEmailChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.license_purchase_email)) },
+                placeholder = { Text("nama@email.com") },
+                singleLine = true,
+                enabled = !busy,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next,
+                ),
+            )
+            OutlinedTextField(
+                value = pin,
+                onValueChange = onPinChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.license_purchase_pin)) },
+                placeholder = { Text("••••••") },
+                singleLine = true,
+                enabled = !busy,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.NumberPassword,
+                    imeAction = ImeAction.Done,
+                ),
+            )
+            Button(
+                onClick = onActivate,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = email.isNotBlank() && pin.length == 6 && !busy,
+            ) {
+                if (busy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(stringResource(R.string.license_purchase_activate))
+            }
+            Text(
+                text = stringResource(R.string.license_purchase_pin_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+    }
+}
 
 @Composable
 private fun TrialOfferCard(
@@ -509,6 +615,15 @@ private fun LicenseStatusCard(state: LicenseUiState) {
         "trial_server_error", "internal_error", "server_unavailable" ->
             R.string.license_trial_error_server_title to R.string.license_trial_error_server_body
         "trial_network" -> R.string.license_trial_error_network_title to R.string.license_trial_error_network_body
+        "purchase_invalid_email" -> R.string.license_trial_error_email_title to R.string.license_purchase_invalid_email_body
+        "purchase_pin_required" -> R.string.license_purchase_invalid_title to R.string.license_purchase_pin_required_body
+        "purchase_pending" -> R.string.license_purchase_pending_title to R.string.license_purchase_pending_body
+        "purchase_rejected" -> R.string.license_purchase_rejected_title to R.string.license_purchase_rejected_body
+        "purchase_not_submitted" -> R.string.license_purchase_not_submitted_title to R.string.license_purchase_not_submitted_body
+        "purchase_credentials_invalid", "purchase_pin_invalid" -> R.string.license_purchase_invalid_title to R.string.license_purchase_invalid_body
+        "purchase_pin_locked" -> R.string.license_purchase_locked_title to R.string.license_purchase_locked_body
+        "purchase_pin_not_configured", "purchase_account_not_ready", "purchase_not_approved" -> R.string.license_purchase_unavailable_title to R.string.license_purchase_unavailable_body
+        "purchase_network" -> R.string.license_purchase_network_title to R.string.license_purchase_network_body
         else -> null
     }
     val content = trialContent ?: when (state.access) {
@@ -544,14 +659,12 @@ private fun LicenseStatusCard(state: LicenseUiState) {
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Text(
-                text = if (state.access == LicenseAccess.DEVICE_LIMIT) {
-                    stringResource(
-                        content.second,
-                        state.activeDevices,
-                        state.maxDevices,
-                    )
-                } else {
-                    stringResource(content.second)
+                text = when {
+                    state.errorCode == "purchase_rejected" && !state.errorDetail.isNullOrBlank() ->
+                        stringResource(R.string.license_purchase_rejected_body_with_reason, state.errorDetail)
+                    state.access == LicenseAccess.DEVICE_LIMIT ->
+                        stringResource(content.second, state.activeDevices, state.maxDevices)
+                    else -> stringResource(content.second)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,

@@ -125,3 +125,9 @@ input[type="file"] { padding: 11px 12px; min-height: 48px; }
 .telegram-button { width: 100%; background: #229ED9; color: #fff; }
 .telegram-button:disabled { opacity: .65; cursor: wait; }
 .telegram-error { margin-top: 10px !important; font-size: 12px; }
+
+/* Patch 13C.8: Purchase account activation */
+.license-backup-details{margin-top:14px;padding:12px 14px;border:1px solid var(--line,#d8dedb);border-radius:14px;background:rgba(255,255,255,.45)}
+.license-backup-details summary{cursor:pointer;font-weight:700;margin-bottom:10px}
+.license-backup-details[open] summary{margin-bottom:12px}
+.license-backup-details .customer-license-key{display:block;margin-bottom:10px}

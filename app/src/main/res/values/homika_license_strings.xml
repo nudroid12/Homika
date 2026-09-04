@@ -139,4 +139,31 @@
     <string name="license_store_error_verify">Verify this licence online first, then open checkout again.</string>
     <string name="license_store_error_generic">Homika checkout could not be prepared. Try again in a moment.</string>
 
+    <string name="license_purchase_login_title">Already paid? Activate with email + 6-digit PIN</string>
+    <string name="license_purchase_login_body">Use the same email and 6-digit Purchase PIN you set during Homika checkout. You do not need to wait for email or Telegram.</string>
+    <string name="license_purchase_email">Purchase email</string>
+    <string name="license_purchase_pin">6-digit Purchase PIN</string>
+    <string name="license_purchase_activate">Activate purchase</string>
+    <string name="license_purchase_pin_note">Your PIN is not stored on this device after activation. Device limit and signed licence protection still apply.</string>
+    <string name="license_key_backup_title">Licence Key backup</string>
+    <string name="license_key_backup_body">If you already have a Licence Key, you can still activate with it here.</string>
+    <string name="license_purchase_pending_title">Payment is still being reviewed</string>
+    <string name="license_purchase_pending_body">Your receipt has been received. You do not need to pay again. Try activation again after the admin approves the payment.</string>
+    <string name="license_purchase_rejected_title">Payment could not be verified</string>
+    <string name="license_purchase_rejected_body">This order was rejected. Please create a new order and upload the correct payment receipt.</string>
+    <string name="license_purchase_rejected_body_with_reason">Reason: %1$s. Please create a new order and upload the correct payment receipt.</string>
+    <string name="license_purchase_not_submitted_title">Payment proof not submitted</string>
+    <string name="license_purchase_not_submitted_body">Complete the QR checkout and upload your payment receipt before activating this purchase.</string>
+    <string name="license_purchase_invalid_title">Email or PIN is incorrect</string>
+    <string name="license_purchase_invalid_body">Use the exact purchase email and 6-digit PIN you set during checkout.</string>
+    <string name="license_purchase_locked_title">Too many incorrect PIN attempts</string>
+    <string name="license_purchase_locked_body">Purchase sign-in is temporarily locked for security. Wait about 15 minutes and try again.</string>
+    <string name="license_purchase_unavailable_title">Purchase activation is not ready</string>
+    <string name="license_purchase_unavailable_body">Homika could not prepare purchase sign-in right now. Your payment and existing licence are not deleted. Try again shortly.</string>
+    <string name="license_purchase_network_title">Could not contact Homika</string>
+    <string name="license_purchase_network_body">An internet connection is required to activate a purchase with email and PIN.</string>
+
+    <string name="license_purchase_invalid_email_body">Enter the same valid email address used for your Homika purchase.</string>
+    <string name="license_purchase_pin_required_body">Enter the exact 6-digit Purchase PIN you set during checkout.</string>
+
 </resources>

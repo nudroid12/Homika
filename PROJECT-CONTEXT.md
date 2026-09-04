@@ -643,3 +643,103 @@ Required production sequence:
 8. Test Reject separately and confirm exact rejection reason is delivered.
 
 Do not weaken activation security by allowing email-only or Telegram-only licence access.
+
+## 22. Patch 13C.8 - Purchase Account Activation (Email + 6-digit PIN)
+
+Reason:
+
+Email delivery can land in Promotions/spam and Telegram is optional. A paying customer must still be able to activate Homika without waiting for either channel or retaining a browser status link.
+
+Canonical activation UX after 13C.8:
+
+- Primary paid-purchase activation is now **Purchase Email + 6-digit Purchase PIN**.
+- Customer sets the 6-digit PIN during checkout and confirms it before proceeding to QR payment.
+- After admin approval, customer opens Homika and uses the same purchase email + PIN to activate the current device directly.
+- Email and Telegram remain optional notification/backup delivery channels only.
+- Licence Key remains supported as a backup/legacy activation method and remains available to admin/recovery flows.
+- Trial activation remains unchanged.
+- Signed activation tokens, device binding, 3-device paid limit, Cloud Sync authorization and existing licence verification remain unchanged.
+
+Security boundary:
+
+- Email alone NEVER activates Homika.
+- Purchase PIN must be exactly 6 digits.
+- PIN is never stored plaintext in D1, Android, Store JavaScript or notification messages.
+- Checkout/account PIN verifier is HMAC-SHA256 using a random per-checkout salt and a server-only pepper.
+- Required Worker Secret: `HOMIKA_PURCHASE_PIN_PEPPER`.
+- Do not expose or commit the pepper.
+- Failed PIN attempts are persisted by email hash.
+- Five failed attempts temporarily lock purchase sign-in for about 15 minutes.
+- Successful verification clears the failed-attempt counter.
+- Device limit remains enforced by the existing `devices` table and activation path.
+- Purchase account login only produces the same signed activation token as existing licence activation. It does not directly expose cloud backups or cloud sync records.
+
+Backend Worker v20:
+
+- New endpoint: `POST /v1/purchases/activate`.
+- `/health` reports:
+  - `version: 20`
+  - `purchase_account_activation: true`
+  - `purchase_pin_digits: 6`
+  - `purchase_pin_rate_limit: true`
+  - `purchase_pin_pepper_configured` based on Worker Secret presence.
+- Checkout create/select-plan now requires `purchase_pin`.
+- Authenticated renewal checkout still starts from the existing signed licence token, but Store requires the customer to enter purchase email + PIN before QR payment.
+- First Trial upgrade / legacy renewal can create the Purchase PIN during checkout.
+- Once a purchase account already exists, renewal requires the existing PIN. A different PIN is rejected.
+- A purchase account is bound to one Homika licence. Attempts to bind the same email/PIN account to a different licence are rejected.
+- On payment approval, `completePaidCheckout` upserts the approved licence into the purchase account before checkout completion.
+- Legacy orders without a Purchase PIN remain valid and continue using Licence Key delivery/activation.
+
+Pending/rejected behavior from the Android activation screen:
+
+- Correct email + PIN while receipt is still awaiting admin review returns `purchase_pending` and tells the customer not to pay again.
+- Rejected order returns `purchase_rejected` and includes the admin rejection reason when available.
+- Correct credentials but no receipt submission returns `purchase_not_submitted`.
+- Wrong email/PIN returns a generic credential error and contributes to rate limiting.
+- No Purchase PIN is saved locally after successful activation.
+
+D1 migration 0011:
+
+Run one statement at a time in Cloudflare D1 Console.
+
+- PART 01: add `checkout_intents.purchase_pin_salt`.
+- PART 02: add `checkout_intents.purchase_pin_hash`.
+- PART 03: add `checkout_intents.purchase_pin_version`.
+- PART 04: create `purchase_accounts`.
+- PART 05: create purchase-account licence index.
+- PART 06: create `purchase_pin_security` for persistent failed-attempt / lock state.
+
+Store UX:
+
+- Fresh purchase: Email -> PIN 6 digit -> Confirm PIN -> QR payment -> upload receipt.
+- Renewal/manual legacy licence: Email -> PIN -> Confirm PIN -> Licence Key -> plan -> QR.
+- Checkout explicitly tells the customer to remember the PIN and that Homika will not send the PIN by email/Telegram.
+- Approved fresh purchase page tells the customer to activate using Email + PIN first.
+- Licence Key is moved to a secondary backup section.
+- Brevo and Telegram approval messages now describe Email + PIN as the primary activation method and Licence Key as backup.
+
+Android files changed:
+
+- `LicenseModels.kt`
+- `LicenseApiClient.kt`
+- `LicenseRepository.kt`
+- `LicenseViewModel.kt`
+- `HomiqApp.kt`
+- `LicenseActivationScreen.kt`
+- English and Malay licence string resources.
+
+Required production sequence:
+
+1. Apply D1 migration 0011 PART 01 through PART 06, one statement at a time.
+2. Create Cloudflare Worker Secret `HOMIKA_PURCHASE_PIN_PEPPER` with a long random value. Never paste it into chat or commit it.
+3. Deploy Patch 13C.8 / Worker v20.
+4. Confirm `/health` shows `purchase_pin_pepper_configured: true`.
+5. Fresh test: choose RM7, set email + PIN, submit proof, verify Android login says payment pending before approval.
+6. Approve the same order.
+7. Reopen/fresh-install Homika and activate using the same Email + PIN without using email, Telegram or Licence Key.
+8. Verify device count is correct and Cloud Sync still uses the signed activation token.
+9. Test five wrong PIN attempts and confirm temporary lock.
+10. Test a rejected order and confirm the Android screen shows rejection state/reason and requests a new order.
+
+Do not remove Licence Key compatibility. It is the recovery/legacy path if the customer forgets the Purchase PIN or for older licences created before 13C.8.

@@ -156,6 +156,35 @@ class LicenseRepository(
         }
     }
 
+    suspend fun activatePurchase(rawEmail: String, rawPin: String): LicenseUiState {
+        val email = normalizeEmail(rawEmail)
+        val pin = rawPin.filter(Char::isDigit)
+        if (email.isBlank()) {
+            return LicenseUiState(
+                access = LicenseAccess.INVALID,
+                errorCode = "purchase_invalid_email",
+            )
+        }
+        if (pin.length != 6) {
+            return LicenseUiState(
+                access = LicenseAccess.INVALID,
+                errorCode = "purchase_pin_required",
+            )
+        }
+
+        return when (val result = api.activatePurchase(email, pin, deviceId, deviceName)) {
+            is LicenseApiResult.Success ->
+                saveAndBuildActive(result.activation)
+            is LicenseApiResult.Rejected ->
+                rejectedState("", result)
+            LicenseApiResult.NetworkError ->
+                LicenseUiState(
+                    access = LicenseAccess.INVALID,
+                    errorCode = "purchase_network",
+                )
+        }
+    }
+
     suspend fun claimTrial(rawEmail: String): LicenseUiState {
         val email = normalizeEmail(rawEmail)
         if (email.isBlank()) {
@@ -355,6 +384,7 @@ class LicenseRepository(
             activeDevices = result.activeDevices ?: stored?.activeDevices ?: 0,
             lastValidatedAtMillis = stored?.lastValidatedAtMillis ?: 0L,
             errorCode = result.code,
+            errorDetail = result.detail,
         )
     }
 
