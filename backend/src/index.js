@@ -16,7 +16,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 16,
+          version: 17,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -38,6 +38,10 @@ export default {
           admin_payment_notification: Boolean(cleanString(env.HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN, 300) && cleanString(env.HOMIKA_ADMIN_TELEGRAM_CHAT_ID, 120)),
           payment_completion_fk_fix: true,
           approval_completion_ux: true,
+          customer_email_delivery: true,
+          customer_email_provider: "resend",
+          customer_email_configured: Boolean(cleanString(env.RESEND_API_KEY, 300) && cleanString(env.HOMIKA_EMAIL_FROM, 320)),
+          rejection_reason_required: true,
           same_license_renewal: true,
           exact_plan_key_in_token: true,
           self_service_trial: true,
@@ -501,6 +505,148 @@ async function notifyAdminManualPayment(env, intent, submissionId, paymentRefere
   if (!response.ok) throw new Error(`telegram_notification_http_${response.status}`);
 }
 
+
+function homikaPlanLabel(planKey) {
+  return ({
+    "1_month": "1 Bulan",
+    "3_month": "3 Bulan",
+    "6_month": "6 Bulan",
+    "1_year": "1 Tahun",
+  })[cleanString(planKey, 40)] || cleanString(planKey, 40) || "Homika Pro";
+}
+
+function homikaMoney(amountCents) {
+  return `RM${(Number(amountCents || 0) / 100).toFixed(0)}`;
+}
+
+function homikaOrderReference(checkout) {
+  const raw = cleanString(checkout?.reference, 80);
+  return raw || "Homika order";
+}
+
+function escapeEmailHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function emailShell(title, bodyHtml) {
+  return `<!doctype html><html><body style="margin:0;background:#f4f6f4;font-family:Arial,sans-serif;color:#18221e"><div style="max-width:620px;margin:0 auto;padding:28px 18px"><div style="background:#fff;border:1px solid #dde3df;border-radius:18px;padding:28px"><div style="font-size:13px;font-weight:700;letter-spacing:.08em;color:#24735a">HOMIKA PRO</div><h1 style="font-size:24px;margin:10px 0 18px">${escapeEmailHtml(title)}</h1>${bodyHtml}<p style="margin-top:28px;font-size:12px;line-height:1.55;color:#6c756f">Email ini ialah notifikasi transaksi Homika. Email anda bukan credential untuk mengakses Homika Cloud. Jangan kongsi Licence Key dengan orang lain.</p></div></div></body></html>`;
+}
+
+function approvalEmailContent(checkout) {
+  const orderRef = homikaOrderReference(checkout);
+  const plan = homikaPlanLabel(checkout?.plan_key);
+  const amount = homikaMoney(checkout?.amount_cents);
+  const isFreshPurchase = checkout?.action === "buy";
+  if (isFreshPurchase) {
+    const key = cleanString(checkout?.license_key, 120);
+    return {
+      subject: "Homika Pro - Bayaran diluluskan & Licence Key",
+      text: [
+        "Bayaran Homika Pro anda telah diluluskan.",
+        `Order: ${orderRef}`,
+        `Pelan: ${plan}`,
+        `Jumlah: ${amount}`,
+        "",
+        `Licence Key: ${key}`,
+        "",
+        "Buka Homika > Activate Licence, masukkan Licence Key di atas dan aktifkan pada peranti anda.",
+        "Simpan email ini untuk rujukan dan jangan kongsi Licence Key dengan orang lain.",
+      ].join("\n"),
+      html: emailShell("Bayaran diluluskan ✓", `<p style="line-height:1.65">Bayaran anda telah disahkan dan Homika Pro sudah sedia untuk diaktifkan.</p><p><strong>Order:</strong> ${escapeEmailHtml(orderRef)}<br><strong>Pelan:</strong> ${escapeEmailHtml(plan)}<br><strong>Jumlah:</strong> ${escapeEmailHtml(amount)}</p><div style="margin:22px 0;padding:18px;background:#f1f7f4;border-radius:14px"><div style="font-size:12px;color:#647069;margin-bottom:6px">LICENCE KEY</div><div style="font-family:monospace;font-size:20px;font-weight:700;word-break:break-all">${escapeEmailHtml(key)}</div></div><p style="line-height:1.65">Buka <strong>Homika → Activate Licence</strong>, masukkan Licence Key di atas dan aktifkan pada peranti anda.</p>`),
+    };
+  }
+  return {
+    subject: "Homika Pro - Bayaran diluluskan",
+    text: [
+      "Bayaran Homika Pro anda telah diluluskan.",
+      `Order: ${orderRef}`,
+      `Pelan: ${plan}`,
+      `Jumlah: ${amount}`,
+      "",
+      "Lesen Homika sedia ada anda telah dikemas kini. Tiada Licence Key baharu diperlukan.",
+      "Buka Homika > Licence dan tekan Verify Now.",
+    ].join("\n"),
+    html: emailShell("Bayaran diluluskan ✓", `<p style="line-height:1.65">Bayaran anda telah disahkan.</p><p><strong>Order:</strong> ${escapeEmailHtml(orderRef)}<br><strong>Pelan:</strong> ${escapeEmailHtml(plan)}<br><strong>Jumlah:</strong> ${escapeEmailHtml(amount)}</p><p style="line-height:1.65">Lesen Homika sedia ada anda telah dikemas kini. <strong>Tiada Licence Key baharu diperlukan.</strong></p><p style="line-height:1.65">Buka <strong>Homika → Licence → Verify Now</strong> untuk refresh status lesen.</p>`),
+  };
+}
+
+function rejectionEmailContent(env, checkout, reason) {
+  const orderRef = homikaOrderReference(checkout);
+  const safeReason = cleanString(reason, 500) || "Bukti pembayaran tidak dapat disahkan.";
+  const isRenewal = checkout?.action === "renew";
+  const nextInstruction = isRenewal
+    ? "Buka Homika > Licence > Upgrade / Renew dan buat checkout baru. Kemudian muat naik resit pembayaran yang betul."
+    : "Buat order baru di Homika Store dan muat naik resit pembayaran yang betul.";
+  const storeUrl = homikaStoreUrl(env);
+  return {
+    subject: "Homika Pro - Bayaran tidak dapat disahkan",
+    text: [
+      "Bayaran Homika anda tidak dapat disahkan.",
+      `Order: ${orderRef}`,
+      `Sebab: ${safeReason}`,
+      "",
+      "Tiada pengaktifan atau pembaharuan lesen dibuat untuk order ini.",
+      nextInstruction,
+      !isRenewal && storeUrl ? `Homika Store: ${storeUrl}` : "",
+    ].filter(Boolean).join("\n"),
+    html: emailShell("Bayaran tidak dapat disahkan", `<p style="line-height:1.65">Kami tidak dapat mengesahkan bukti pembayaran untuk order <strong>${escapeEmailHtml(orderRef)}</strong>.</p><div style="margin:18px 0;padding:16px;background:#fff4f2;border-radius:14px"><strong>Sebab ditolak:</strong><br>${escapeEmailHtml(safeReason)}</div><p style="line-height:1.65">Tiada pengaktifan atau pembaharuan lesen dibuat untuk order ini.</p><p style="line-height:1.65"><strong>Sila buat order baru</strong> dan muat naik resit/bukti pembayaran yang betul.</p>${!isRenewal && storeUrl ? `<p><a href="${escapeEmailHtml(storeUrl)}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#1d6f55;color:#fff;text-decoration:none;font-weight:700">Buka Homika Store</a></p>` : `<p style="line-height:1.65">Buka <strong>Homika → Licence → Upgrade / Renew</strong> untuk mulakan checkout baru.</p>`}`),
+  };
+}
+
+async function sendCustomerPaymentDecisionEmail(env, { submission, checkout, decision, rejectionReason = "", forceResend = false }) {
+  const apiKey = cleanString(env.RESEND_API_KEY, 300);
+  const from = cleanString(env.HOMIKA_EMAIL_FROM, 320);
+  const to = normalizeEmail(checkout?.customer_email);
+  if (!apiKey || !from) return { configured: false, ok: false, error: "customer_email_not_configured" };
+  if (!to) return { configured: true, ok: false, error: "customer_email_missing" };
+
+  const content = decision === "reject"
+    ? rejectionEmailContent(env, checkout, rejectionReason)
+    : approvalEmailContent(checkout);
+  const submissionId = cleanString(submission?.id, 80) || crypto.randomUUID();
+  const keySuffix = forceResend ? crypto.randomUUID() : decision;
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "authorization": `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        "idempotency-key": `homika-${submissionId}-${keySuffix}`.slice(0, 240),
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject: content.subject,
+        html: content.html,
+        text: content.text,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error("customer_payment_email_failed", {
+        submission_id: submissionId,
+        decision,
+        status: response.status,
+        provider_error: cleanString(payload?.message || payload?.name || "", 240),
+      });
+      return { configured: true, ok: false, error: `email_provider_http_${response.status}` };
+    }
+    return { configured: true, ok: true, provider: "resend", id: cleanString(payload?.id, 120) || null, to };
+  } catch (err) {
+    console.error("customer_payment_email_failed", {
+      submission_id: submissionId,
+      decision,
+      error: String(err?.message || err),
+    });
+    return { configured: true, ok: false, error: "email_provider_unreachable" };
+  }
+}
+
 async function submitManualPayment(request, env, ctx) {
   if (!env.BACKUPS) return json({ ok: false, error: "payment_proof_storage_not_configured" }, 503);
   const body = await readJson(request);
@@ -675,7 +821,7 @@ async function reviewManualPayment(request, env) {
   const action = cleanString(body.action, 20).toLowerCase();
   const adminNote = cleanString(body.admin_note, 500);
   if (!id) return badRequest("submission_id_required");
-  if (!["approve", "reject"].includes(action)) return badRequest("invalid_review_action");
+  if (!["approve", "reject", "resend_email"].includes(action)) return badRequest("invalid_review_action");
 
   const submission = await env.DB.prepare(
     `SELECT m.*, c.public_token, c.status AS checkout_status
@@ -685,21 +831,50 @@ async function reviewManualPayment(request, env) {
   ).bind(id).first();
   if (!submission) return json({ ok: false, error: "payment_submission_not_found" }, 404);
 
+  if (action === "resend_email") {
+    if (!["approved", "rejected"].includes(submission.status)) {
+      return json({ ok: false, error: "payment_not_reviewed" }, 409);
+    }
+    const intent = await getCheckoutIntent(env, submission.public_token);
+    if (!intent) return json({ ok: false, error: "checkout_not_found" }, 404);
+    const checkout = await checkoutIntentJson(env, intent);
+    const emailDelivery = await sendCustomerPaymentDecisionEmail(env, {
+      submission,
+      checkout,
+      decision: submission.status === "approved" ? "approve" : "reject",
+      rejectionReason: submission.admin_note || "Bukti pembayaran tidak dapat disahkan.",
+      forceResend: true,
+    });
+    return json({ ok: true, checkout, email_delivery: emailDelivery });
+  }
+
   if (action === "reject") {
     if (submission.status === "approved") return json({ ok: false, error: "payment_already_approved" }, 409);
+    if (submission.status === "rejected") {
+      const checkout = await getCheckoutIntent(env, submission.public_token);
+      return json({ ok: true, idempotent: true, checkout: await checkoutIntentJson(env, checkout), email_delivery: { ok: true, skipped: "already_rejected" } });
+    }
+    if (!adminNote) return badRequest("rejection_reason_required");
     await env.DB.prepare(
       `UPDATE manual_payment_submissions
           SET status = 'rejected', admin_note = ?1, reviewed_at = CURRENT_TIMESTAMP,
               updated_at = CURRENT_TIMESTAMP
         WHERE id = ?2`
-    ).bind(adminNote || "Bukti pembayaran tidak dapat disahkan.", id).run();
+    ).bind(adminNote, id).run();
     const checkout = await getCheckoutIntent(env, submission.public_token);
-    return json({ ok: true, checkout: await checkoutIntentJson(env, checkout) });
+    const checkoutJson = await checkoutIntentJson(env, checkout);
+    const emailDelivery = await sendCustomerPaymentDecisionEmail(env, {
+      submission: { ...submission, status: "rejected", admin_note: adminNote },
+      checkout: checkoutJson,
+      decision: "reject",
+      rejectionReason: adminNote,
+    });
+    return json({ ok: true, checkout: checkoutJson, email_delivery: emailDelivery });
   }
 
   if (submission.status === "approved" || submission.checkout_status === "completed") {
     const checkout = await getCheckoutIntent(env, submission.public_token);
-    return json({ ok: true, idempotent: true, checkout: await checkoutIntentJson(env, checkout) });
+    return json({ ok: true, idempotent: true, checkout: await checkoutIntentJson(env, checkout), email_delivery: { ok: true, skipped: "already_approved" } });
   }
   if (submission.status !== "submitted") return json({ ok: false, error: "payment_not_ready_for_review" }, 409);
 
@@ -728,7 +903,13 @@ async function reviewManualPayment(request, env) {
             updated_at = CURRENT_TIMESTAMP
       WHERE id = ?2`
   ).bind(adminNote || null, id).run();
-  return json({ ok: true, checkout: await checkoutIntentJson(env, completed) });
+  const checkoutJson = await checkoutIntentJson(env, completed);
+  const emailDelivery = await sendCustomerPaymentDecisionEmail(env, {
+    submission: { ...submission, status: "approved", admin_note: adminNote || null },
+    checkout: checkoutJson,
+    decision: "approve",
+  });
+  return json({ ok: true, checkout: checkoutJson, email_delivery: emailDelivery });
 }
 
 function paymentCompletionErrorCode(err) {

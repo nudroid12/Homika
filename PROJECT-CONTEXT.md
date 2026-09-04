@@ -1,6 +1,6 @@
 # Homika Pro - Canonical Project Context
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 Repository: `nudroid12/Homika`
 
 This file is the repository checkpoint and source of truth for continuing the Homika Pro project in a new chat/session. Read this before changing architecture or preparing a patch.
@@ -456,3 +456,72 @@ Production acceptance test for 13C.4:
 4. Close and reopen the customer status link. Confirm the key is still available.
 5. Repeat with Trial upgrade/renewal. Confirm no new key is created and customer is instructed to Verify Now.
 6. Check Admin filter `Diluluskan` and confirm approved history remains visible.
+
+## 19. Patch 13C.5 - Automatic Customer Email Delivery
+
+Goal:
+
+Make manual QR approval practical even when the customer has already closed the checkout page before admin reviews the payment.
+
+Architecture/security:
+
+- Licence Key + device activation + signed token remain the security boundary.
+- Email is only the delivery/notification channel. Email address alone never activates a licence and never grants Homika Cloud access.
+- Customer email is taken from the existing checkout intent.
+- Transactional delivery is server-to-server from the Cloudflare Worker through Resend. No API key is exposed to Store JavaScript or Android.
+- Required production Worker configuration:
+  - `RESEND_API_KEY` as a Cloudflare Secret.
+  - `HOMIKA_EMAIL_FROM` as a Cloudflare Secret or persistent variable, e.g. `Homika <no-reply@mail.example.com>` from a verified Resend domain.
+- `resend.dev` is suitable only for restricted testing. Production delivery to arbitrary customer addresses requires a domain owned/controlled by the Homika owner and verified with the email provider.
+
+Approve behavior:
+
+- Fresh purchase:
+  - Payment completion runs first.
+  - Paid licence is generated using the existing licensing core.
+  - Customer receives an approval email containing order reference, plan, amount and the generated Licence Key.
+  - Email instructs customer to open Homika -> Activate Licence and enter the key.
+- Trial upgrade / renewal:
+  - Same licence remains in use.
+  - Customer receives an approval email confirming the plan/payment update.
+  - No new Licence Key is issued.
+  - Email instructs customer to open Homika -> Licence -> Verify Now.
+- Approval remains successful even if the email provider is temporarily unavailable. Admin sees a clear warning instead of the licence transaction being rolled back.
+
+Reject behavior:
+
+- Reject reason is now mandatory in both Admin UI and Worker validation.
+- The exact admin reason is stored in the existing `admin_note` field.
+- Customer automatically receives a rejection email containing that reason.
+- Email states that no activation/renewal was performed and asks the customer to create a NEW order and upload the correct receipt/payment proof.
+- For a fresh purchase the email can link back to Homika Store.
+- For Upgrade/Renew the email tells the customer to restart checkout from Homika -> Licence -> Upgrade / Renew so an authenticated renewal intent is created again.
+
+Recovery:
+
+- Approved and Rejected history rows include `Hantar semula email` in Admin Dashboard.
+- This calls the authenticated admin review endpoint with `resend_email` and can be used after fixing email configuration or on customer request.
+- Automatic sends use a stable Resend idempotency key to reduce accidental duplicate sends; manual resend intentionally gets a fresh idempotency key.
+
+Worker/UX status:
+
+- Worker health version: 17.
+- Health flags:
+  - `customer_email_delivery: true`
+  - `customer_email_provider: "resend"`
+  - `customer_email_configured: true/false`
+  - `rejection_reason_required: true`
+- No D1 migration is required for 13C.5.
+- No Android changes.
+- Money 14A, Cloud Sync, Backup, updater, signing and licence core remain untouched.
+
+Production acceptance for 13C.5:
+
+1. Deploy Worker/Store patch and confirm `/health` version 17.
+2. Configure `RESEND_API_KEY` and `HOMIKA_EMAIL_FROM`.
+3. Confirm `/health` reports `customer_email_configured: true`.
+4. Fresh purchase test: submit QR proof, close checkout page, Approve later, confirm customer receives Licence Key email and can activate.
+5. Renewal/Trial-upgrade test: Approve and confirm email says use existing licence + Verify Now.
+6. Reject test: attempt Reject without reason and confirm it is blocked. Enter a reason, Reject, and confirm customer receives the exact reason plus instructions to make a new order with the correct receipt.
+7. From Approved/Rejected history test `Hantar semula email`.
+

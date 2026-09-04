@@ -57,10 +57,12 @@ function renderPayments(items){
   items.forEach(item=>{
     const card=document.createElement('article');card.className='admin-payment';
     const statusUrl=item.checkout_token?customerStatusUrl(item.checkout_token):'';
+    const resendButton=(item.status==='approved'||item.status==='rejected')&&item.email
+      ?'<button class="button secondary resend-email-button" type="button">Hantar semula email</button>':'';
     const completion=item.status==='approved'
-      ?`<div class="admin-completion"><strong>Bayaran telah diluluskan ✓</strong>${item.action==='buy'&&item.license_key?`<p>Licence Key customer:</p><code>${esc(item.license_key)}</code>`:'<p>Lesen sedia ada customer telah dikemas kini. Tiada key baharu diperlukan.</p>'}<div class="admin-completion-actions">${item.license_key?'<button class="button secondary history-copy-license" type="button">Salin Licence Key</button>':''}${statusUrl?'<button class="button secondary history-copy-status" type="button">Salin link customer</button>':''}</div></div>`
+      ?`<div class="admin-completion"><strong>Bayaran telah diluluskan ✓</strong>${item.action==='buy'&&item.license_key?`<p>Licence Key customer:</p><code>${esc(item.license_key)}</code>`:'<p>Lesen sedia ada customer telah dikemas kini. Tiada key baharu diperlukan.</p>'}<p>Email customer: <strong>${esc(item.email||'-')}</strong></p><div class="admin-completion-actions">${item.license_key?'<button class="button secondary history-copy-license" type="button">Salin Licence Key</button>':''}${statusUrl?'<button class="button secondary history-copy-status" type="button">Salin link customer</button>':''}${resendButton}</div></div>`
       :item.status==='rejected'
-        ?`<div class="admin-completion"><strong>Bayaran ditolak</strong><p>${esc(item.admin_note||'Bukti pembayaran tidak dapat disahkan.')}</p></div>`
+        ?`<div class="admin-completion"><strong>Bayaran ditolak</strong><p><strong>Sebab:</strong> ${esc(item.admin_note||'Bukti pembayaran tidak dapat disahkan.')}</p><p>Email customer: <strong>${esc(item.email||'-')}</strong></p><div class="admin-completion-actions">${resendButton}</div></div>`
         :'';
     card.innerHTML=`
       <div class="admin-payment-head"><div><div class="admin-reference">${esc(item.checkout_reference)}</div><div class="status-pill">${esc(item.status)}</div></div><div class="admin-amount">${money(item.amount_cents)}</div></div>
@@ -74,13 +76,14 @@ function renderPayments(items){
       ${completion}
       <button class="button secondary proof-button" type="button">Lihat bukti</button>
       <div class="proof-slot"></div>
-      ${item.status==='submitted'?`<div class="admin-actions"><input class="admin-note" type="text" maxlength="500" placeholder="Nota admin (optional)"><button class="button danger reject-button" type="button">Reject</button><button class="button primary approve-button" type="button">Approve</button></div>`:''}
+      ${item.status==='submitted'?`<div class="admin-actions"><input class="admin-note" type="text" maxlength="500" placeholder="Nota optional untuk Approve. Sebab WAJIB untuk Reject."><button class="button danger reject-button" type="button">Reject</button><button class="button primary approve-button" type="button">Approve</button></div>`:''}
     `;
     card.querySelector('.proof-button').addEventListener('click',()=>loadProof(item.id,card.querySelector('.proof-slot')));
     card.querySelector('.approve-button')?.addEventListener('click',()=>review(item,'approve',card));
     card.querySelector('.reject-button')?.addEventListener('click',()=>review(item,'reject',card));
     card.querySelector('.history-copy-license')?.addEventListener('click',e=>copyText(item.license_key,e.currentTarget,'Licence Key disalin ✓'));
     card.querySelector('.history-copy-status')?.addEventListener('click',e=>copyText(statusUrl,e.currentTarget,'Link disalin ✓'));
+    card.querySelector('.resend-email-button')?.addEventListener('click',e=>resendEmail(item,e.currentTarget));
     list.appendChild(card);
   });
 }
@@ -95,7 +98,14 @@ async function loadProof(id,slot){
   }catch(err){slot.innerHTML=`<div class="admin-error">Bukti gagal dimuatkan (${esc(err.message)}).</div>`}
 }
 
-function showReviewResult(item,action,checkout){
+function emailDeliveryText(delivery,email){
+  if(delivery?.ok&&delivery?.skipped)return '';
+  if(delivery?.ok)return ` Email telah dihantar ke ${email||'customer'}.`;
+  if(delivery?.configured===false)return ' Lesen/order telah diproses, tetapi servis email belum dikonfigurasi.';
+  return ' Lesen/order telah diproses, tetapi email customer gagal dihantar. Gunakan butang Hantar semula email selepas semak konfigurasi.';
+}
+
+function showReviewResult(item,action,checkout,emailDelivery,note=''){
   const approved=action==='approve';
   const statusUrl=checkout?.token?customerStatusUrl(checkout.token):(item.checkout_token?customerStatusUrl(item.checkout_token):'');
   const licenseKey=approved&&checkout?.action==='buy'?checkout.license_key||'':'';
@@ -103,11 +113,11 @@ function showReviewResult(item,action,checkout){
   document.querySelector('#review-result-icon').textContent=approved?'✓':'×';
   resultTitle.textContent=approved?'Bayaran berjaya diluluskan ✓':'Bayaran telah ditolak';
   if(approved&&checkout?.action==='buy'){
-    resultCopy.textContent='Lesen Homika Pro baharu telah diaktifkan. Customer boleh ambil Licence Key melalui link semakan bayaran.';
+    resultCopy.textContent=`Lesen Homika Pro baharu telah diaktifkan.${emailDeliveryText(emailDelivery,item.email)}`;
   }else if(approved){
-    resultCopy.textContent='Lesen sedia ada customer telah dikemas kini. Customer hanya perlu kembali ke Homika dan tekan Verify Now.';
+    resultCopy.textContent=`Lesen sedia ada customer telah dikemas kini. Customer hanya perlu kembali ke Homika dan tekan Verify Now.${emailDeliveryText(emailDelivery,item.email)}`;
   }else{
-    resultCopy.textContent='Customer boleh buka semula link semakan dan upload bukti pembayaran yang betul.';
+    resultCopy.textContent=`Order telah ditolak. Sebab: ${note}. Customer diminta buat order baru dengan resit yang betul.${emailDeliveryText(emailDelivery,item.email)}`;
   }
   resultLicenseWrap.classList.toggle('hidden',!licenseKey);
   resultCopyLicense.classList.toggle('hidden',!licenseKey);
@@ -120,17 +130,31 @@ function showReviewResult(item,action,checkout){
 
 async function review(item,action,card){
   const note=card.querySelector('.admin-note')?.value.trim()||'';
+  if(action==='reject'&&!note){alert('Masukkan sebab Reject dahulu. Sebab ini akan dihantar kepada customer melalui email.');card.querySelector('.admin-note')?.focus();return}
   const buttons=[...card.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
   try{
     const response=await api('/v1/admin/payments/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({submission_id:item.id,action,admin_note:note})});
     await loadPayments();
-    showReviewResult(item,action,response.checkout||null);
+    showReviewResult(item,action,response.checkout||null,response.email_delivery||null,note);
   }catch(err){
     if(err.code==='unauthorized'||err.code==='admin_not_configured'){
       sessionStorage.removeItem('homika_admin_secret');state.secret='';secretInput.value='';showLogin(err.code==='admin_not_configured'?'Admin Secret belum dikonfigurasi pada Worker.':'Sesi admin tamat atau Admin Secret tidak sah. Sila log masuk semula.');return;
     }
+    if(err.code==='rejection_reason_required'){alert('Sebab Reject wajib diisi.');card.querySelector('.admin-note')?.focus();buttons.forEach(b=>b.disabled=false);return}
     alert(`Tindakan gagal (${err.code||'error'}).`);buttons.forEach(b=>b.disabled=false)
   }
+}
+
+async function resendEmail(item,button){
+  const before=button.textContent;button.disabled=true;button.textContent='Menghantar…';
+  try{
+    const response=await api('/v1/admin/payments/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({submission_id:item.id,action:'resend_email'})});
+    const delivery=response.email_delivery||{};
+    if(delivery.ok){button.textContent='Email dihantar ✓';setTimeout(()=>{button.textContent=before;button.disabled=false},1800);return}
+    if(delivery.configured===false)alert('Servis email belum dikonfigurasi pada Worker.');
+    else alert(`Email gagal dihantar (${delivery.error||'error'}).`);
+  }catch(err){alert(`Email gagal dihantar (${err.code||'error'}).`)}
+  button.textContent=before;button.disabled=false;
 }
 
 resultClose.addEventListener('click',()=>resultDialog.close());
