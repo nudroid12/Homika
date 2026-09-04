@@ -2,8 +2,10 @@ package com.homiq.app.ui.screens
 
 import android.content.Context
 import android.text.format.DateFormat
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +22,7 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -29,6 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -52,6 +59,12 @@ fun BackupScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var showCloudRecovery by remember { mutableStateOf(false) }
+    var showCloudInfo by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = showCloudRecovery) {
+        showCloudRecovery = false
+    }
 
     val createBackup =
         rememberLauncherForActivityResult(
@@ -67,350 +80,437 @@ fun BackupScreen(
             viewModel.inspectRestore(uri)
         }
 
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.backup_restore_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
+    val syncStatus = when {
+        state.cloudSyncRunning -> stringResource(R.string.cloud_sync_status_syncing)
+        state.cloudSyncFailure != null -> stringResource(R.string.cloud_sync_status_issue)
+        state.cloudSyncLastSuccessEpochMillis != null -> stringResource(R.string.cloud_sync_status_synced)
+        else -> stringResource(R.string.cloud_sync_status_ready)
+    }
+    val syncTime = state.cloudSyncLastSuccessEpochMillis
+        ?.let { compactRelativeTime(it) }
+        ?: stringResource(R.string.cloud_sync_time_never)
+    val syncDeviceCount = stringResource(
+        R.string.cloud_sync_devices_value,
+        state.cloudSyncRemoteDeviceCount + 1,
+    )
+    val compactSyncSummary = stringResource(
+        R.string.cloud_sync_compact_summary,
+        syncStatus,
+        syncTime,
+        syncDeviceCount,
+    )
 
-        Text(
-            text = stringResource(R.string.cloud_backup_page_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    val latestCloudText = when {
+        state.isCloudRefreshing -> stringResource(R.string.cloud_checking)
+        state.cloudLatest == null -> stringResource(R.string.cloud_no_backup)
+        else -> {
+            val latest = state.cloudLatest!!
+            stringResource(
+                R.string.cloud_latest_summary,
+                formatDateTime(context, latest.createdAtEpochMillis),
+                latest.recordCount,
+                formatBytes(latest.byteSize),
+            )
+        }
+    }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = 2.dp,
+    val automaticStatus: String? = when {
+        !state.automaticCloudBackupEnabled -> stringResource(R.string.cloud_auto_backup_off)
+        state.automaticCloudBackupRunning -> stringResource(R.string.cloud_auto_backup_running)
+        state.automaticCloudBackupPending -> stringResource(R.string.cloud_auto_backup_pending)
+        else -> null
+    }
+
+    if (showCloudRecovery) {
+        Column(
+            modifier =
+                modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+            TextButton(onClick = { showCloudRecovery = false }) {
+                Text(stringResource(R.string.cloud_back))
+            }
+
+            Text(
+                text = stringResource(R.string.cloud_recovery_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.cloud_recovery_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 2.dp,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Sync,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                    HistoryRow(
+                        label = stringResource(R.string.cloud_latest_backup),
+                        value = latestCloudText,
                     )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.cloud_sync_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = stringResource(R.string.cloud_sync_body),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
 
-                val syncStatus = when {
-                    state.cloudSyncRunning -> stringResource(R.string.cloud_sync_status_syncing)
-                    state.cloudSyncFailure != null -> cloudSyncFailureText(state.cloudSyncFailure!!)
-                    state.cloudSyncLastSuccessEpochMillis != null -> stringResource(R.string.cloud_sync_status_synced)
-                    else -> stringResource(R.string.cloud_sync_status_ready)
-                }
-                HistoryRow(
-                    label = stringResource(R.string.cloud_sync_status),
-                    value = syncStatus,
-                )
-                HistoryRow(
-                    label = stringResource(R.string.cloud_sync_last_sync),
-                    value = state.cloudSyncLastSuccessEpochMillis
-                        ?.let { formatDateTime(context, it) }
-                        ?: stringResource(R.string.never),
-                )
-                HistoryRow(
-                    label = stringResource(R.string.cloud_sync_devices),
-                    value = stringResource(
-                        R.string.cloud_sync_devices_value,
-                        state.cloudSyncRemoteDeviceCount + 1,
-                    ),
-                )
-
-                if (state.cloudSyncConflictCount > 0 || state.cloudSyncIgnoredSnapshotCount > 0) {
                     Text(
-                        text = stringResource(
-                            R.string.cloud_sync_attention,
-                            state.cloudSyncConflictCount,
-                            state.cloudSyncIgnoredSnapshotCount,
-                        ),
+                        text = stringResource(R.string.cloud_backup_restore_warning),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
 
-                Button(
-                    onClick = viewModel::syncNow,
-                    enabled = !state.cloudSyncRunning,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (state.cloudSyncRunning) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Icon(Icons.Outlined.Sync, contentDescription = null)
-                    }
-                    Text(
-                        text = stringResource(R.string.cloud_sync_now),
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
-
-                Text(
-                    text = stringResource(R.string.cloud_sync_foreground_note),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = 2.dp,
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.cloud_backup_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(R.string.cloud_backup_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                val latestText = when {
-                    state.isCloudRefreshing -> stringResource(R.string.cloud_checking)
-                    state.cloudLatest == null -> stringResource(R.string.cloud_no_backup)
-                    else -> {
-                        val latest = state.cloudLatest!!
-                        stringResource(
-                            R.string.cloud_latest_summary,
-                            formatDateTime(context, latest.createdAtEpochMillis),
-                            latest.recordCount,
-                            formatBytes(latest.byteSize),
-                        )
-                    }
-                }
-
-                HistoryRow(
-                    label = stringResource(R.string.cloud_latest_backup),
-                    value = latestText,
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    Button(
+                        onClick = viewModel::inspectCloudRestore,
+                        enabled = !state.isBusy && state.cloudLatest != null,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
+                        Icon(Icons.Outlined.Restore, contentDescription = null)
                         Text(
-                            text = stringResource(R.string.cloud_auto_backup_title),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            text = stringResource(R.string.cloud_restore_latest),
+                            modifier = Modifier.padding(start = 8.dp),
                         )
+                    }
+
+                    if (state.cloudLatest == null && !state.isCloudRefreshing) {
                         Text(
-                            text = stringResource(R.string.cloud_auto_backup_body),
-                            style = MaterialTheme.typography.bodySmall,
+                            text = stringResource(R.string.cloud_restore_no_backup_hint),
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Switch(
-                        checked = state.automaticCloudBackupEnabled,
-                        onCheckedChange = viewModel::setAutomaticCloudBackup,
-                        enabled = !state.isBusy,
+
+                    Text(
+                        text = stringResource(R.string.cloud_encryption_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+        }
+    } else {
+        Column(
+            modifier =
+                modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.backup_restore_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
 
-                val automaticStatus = when {
-                    !state.automaticCloudBackupEnabled ->
-                        stringResource(R.string.cloud_auto_backup_off)
-                    state.automaticCloudBackupRunning ->
-                        stringResource(R.string.cloud_auto_backup_running)
-                    state.automaticCloudBackupPending ->
-                        stringResource(R.string.cloud_auto_backup_pending)
-                    state.lastAutomaticCloudBackupEpochMillis != null ->
-                        stringResource(
-                            R.string.cloud_auto_backup_last,
-                            formatDateTime(
-                                context,
-                                state.lastAutomaticCloudBackupEpochMillis!!,
-                            ),
+            Text(
+                text = stringResource(R.string.cloud_backup_page_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 2.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Sync,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
                         )
-                    else -> stringResource(R.string.cloud_auto_backup_ready)
-                }
-                Text(
-                    text = automaticStatus,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.cloud_backup_title),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = compactSyncSummary,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(
+                            onClick = viewModel::syncNow,
+                            enabled = !state.cloudSyncRunning,
+                        ) {
+                            if (state.cloudSyncRunning) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.Sync,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                            Text(
+                                text = stringResource(R.string.cloud_sync_now),
+                                modifier = Modifier.padding(start = 6.dp),
+                            )
+                        }
+                    }
 
-                Button(
-                    onClick = viewModel::createCloudBackup,
-                    enabled = !state.isBusy,
-                    modifier = Modifier.fillMaxWidth(),
+                    state.cloudSyncFailure?.let { reason ->
+                        Text(
+                            text = cloudSyncFailureText(reason),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+
+                    if (state.cloudSyncConflictCount > 0 || state.cloudSyncIgnoredSnapshotCount > 0) {
+                        Text(
+                            text = stringResource(
+                                R.string.cloud_sync_attention,
+                                state.cloudSyncConflictCount,
+                                state.cloudSyncIgnoredSnapshotCount,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+
+                    HorizontalDivider()
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.cloud_auto_backup_title),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = stringResource(R.string.cloud_auto_backup_body),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = state.automaticCloudBackupEnabled,
+                            onCheckedChange = viewModel::setAutomaticCloudBackup,
+                            enabled = !state.isBusy,
+                        )
+                    }
+
+                    automaticStatus?.let { status ->
+                        Text(
+                            text = status,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    HistoryRow(
+                        label = stringResource(R.string.cloud_latest_backup),
+                        value = latestCloudText,
+                    )
+
+                    Button(
+                        onClick = viewModel::createCloudBackup,
+                        enabled = !state.isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Outlined.Backup, contentDescription = null)
+                        Text(
+                            text = stringResource(R.string.cloud_backup_now),
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+
+                    HorizontalDivider()
+
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !state.isBusy) {
+                                    showCloudRecovery = true
+                                }
+                                .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Restore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.cloud_recovery_row_title),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = stringResource(R.string.cloud_recovery_row_body),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = "›",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    TextButton(onClick = { showCloudInfo = true }) {
+                        Text(stringResource(R.string.cloud_learn_more))
+                    }
+                }
+            }
+
+            Text(
+                text = stringResource(R.string.local_backup_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(Icons.Outlined.Backup, contentDescription = null)
                     Text(
-                        text = stringResource(R.string.cloud_backup_now),
-                        modifier = Modifier.padding(start = 8.dp),
+                        text = stringResource(R.string.backup_zero_cost_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.backup_zero_cost_body),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
 
-                Text(
-                    text = stringResource(R.string.cloud_backup_restore_warning),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                OutlinedButton(
-                    onClick = viewModel::inspectCloudRestore,
-                    enabled = !state.isBusy && state.cloudLatest != null,
-                    modifier = Modifier.fillMaxWidth(),
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Icon(Icons.Outlined.Restore, contentDescription = null)
-                    Text(
-                        text = stringResource(R.string.cloud_restore_latest),
-                        modifier = Modifier.padding(start = 8.dp),
+                    HistoryRow(
+                        label = stringResource(R.string.backup_last_backup),
+                        value =
+                            state.history.lastBackupEpochMillis
+                                ?.let { formatDateTime(context, it) }
+                                ?: stringResource(R.string.never),
+                    )
+                    HistoryRow(
+                        label = stringResource(R.string.backup_last_restore),
+                        value =
+                            state.history.lastRestoreEpochMillis
+                                ?.let { formatDateTime(context, it) }
+                                ?: stringResource(R.string.never),
                     )
                 }
-
-                Text(
-                    text = stringResource(R.string.cloud_encryption_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = stringResource(R.string.cloud_sync_backup_distinction),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
-        }
 
-        Text(
-            text = stringResource(R.string.local_backup_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = 1.dp,
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            Button(
+                onClick = {
+                    createBackup.launch(viewModel.backupFileName())
+                },
+                enabled = !state.isBusy,
+                modifier = Modifier.fillMaxWidth(),
             ) {
+                Icon(Icons.Outlined.Backup, contentDescription = null)
                 Text(
-                    text = stringResource(R.string.backup_zero_cost_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(R.string.backup_zero_cost_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = stringResource(R.string.create_backup),
+                    modifier = Modifier.padding(start = 8.dp),
                 )
             }
-        }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = 1.dp,
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+            OutlinedButton(
+                onClick = {
+                    inspectRestore.launch(
+                        arrayOf(
+                            "application/octet-stream",
+                            "application/json",
+                            "text/plain",
+                            "*/*",
+                        ),
+                    )
+                },
+                enabled = !state.isBusy,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                HistoryRow(
-                    label = stringResource(R.string.backup_last_backup),
-                    value =
-                        state.history.lastBackupEpochMillis
-                            ?.let { formatDateTime(context, it) }
-                            ?: stringResource(R.string.never),
-                )
-                HistoryRow(
-                    label = stringResource(R.string.backup_last_restore),
-                    value =
-                        state.history.lastRestoreEpochMillis
-                            ?.let { formatDateTime(context, it) }
-                            ?: stringResource(R.string.never),
+                Icon(Icons.Outlined.Restore, contentDescription = null)
+                Text(
+                    text = stringResource(R.string.restore_backup),
+                    modifier = Modifier.padding(start = 8.dp),
                 )
             }
-        }
 
-        Button(
-            onClick = {
-                createBackup.launch(viewModel.backupFileName())
-            },
-            enabled = !state.isBusy,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(Icons.Outlined.Backup, contentDescription = null)
             Text(
-                text = stringResource(R.string.create_backup),
-                modifier = Modifier.padding(start = 8.dp),
+                text = stringResource(R.string.backup_picker_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
 
-        OutlinedButton(
-            onClick = {
-                inspectRestore.launch(
-                    arrayOf(
-                        "application/octet-stream",
-                        "application/json",
-                        "text/plain",
-                        "*/*",
-                    ),
-                )
+            if (state.isBusy) {
+                CircularProgressIndicator()
+            }
+        }
+    }
+
+    if (showCloudInfo) {
+        AlertDialog(
+            onDismissRequest = { showCloudInfo = false },
+            title = {
+                Text(stringResource(R.string.cloud_info_title))
             },
-            enabled = !state.isBusy,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(Icons.Outlined.Restore, contentDescription = null)
-            Text(
-                text = stringResource(R.string.restore_backup),
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
-
-        Text(
-            text = stringResource(R.string.backup_picker_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(stringResource(R.string.cloud_sync_foreground_note))
+                    Text(stringResource(R.string.cloud_encryption_note))
+                    Text(stringResource(R.string.cloud_sync_backup_distinction))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCloudInfo = false }) {
+                    Text(stringResource(R.string.ok))
+                }
+            },
         )
-
-        if (state.isBusy) {
-            CircularProgressIndicator()
-        }
     }
 
     state.pendingRestorePreview?.let { preview ->
@@ -426,6 +526,21 @@ fun BackupScreen(
             message = message,
             onDismiss = viewModel::clearMessage,
         )
+    }
+}
+
+@Composable
+private fun compactRelativeTime(epochMillis: Long): String {
+    val elapsed = (System.currentTimeMillis() - epochMillis).coerceAtLeast(0L)
+    val minute = 60_000L
+    val hour = 60L * minute
+    val day = 24L * hour
+
+    return when {
+        elapsed < minute -> stringResource(R.string.cloud_sync_time_now)
+        elapsed < hour -> stringResource(R.string.cloud_sync_time_minutes, elapsed / minute)
+        elapsed < day -> stringResource(R.string.cloud_sync_time_hours, elapsed / hour)
+        else -> formatDateTime(LocalContext.current, epochMillis)
     }
 }
 

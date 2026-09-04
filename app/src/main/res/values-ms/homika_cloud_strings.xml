@@ -1,29 +1,27 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="cloud_backup_page_subtitle">Data kekal local-first, dengan backup Homika Cloud yang dienkripsi apabila diperlukan.</string>
+    <string name="cloud_backup_page_subtitle">Selaraskan dan lindungi data Homika anda.</string>
     <string name="cloud_backup_title">Homika Cloud</string>
     <string name="cloud_backup_body">Buat backup cloud terenkripsi yang terikat kepada lesen Homika Pro aktif. Backup dienkripsi pada peranti ini sebelum dihantar.</string>
     <string name="cloud_latest_backup">Backup cloud terkini</string>
     <string name="cloud_checking">Sedang menyemak…</string>
     <string name="cloud_no_backup">Belum ada backup cloud</string>
     <string name="cloud_latest_summary">%1$s · %2$d rekod · %3$s</string>
-    <string name="cloud_backup_now">Backup ke Homika Cloud</string>
+    <string name="cloud_backup_now">Backup sekarang</string>
     <string name="cloud_restore_latest">Pulihkan backup cloud terkini</string>
     <string name="cloud_encryption_note">Homika memampat dan mengenkripsi backup dengan AES-256-GCM sebelum upload. Storan cloud hanya menerima fail backup yang telah dienkripsi.</string>
     <string name="cloud_phase_two_note">Cloud Backup Fasa 2 mengatur backup perubahan lokal secara automatik. Edit digabung selama 30 saat, upload dihadkan paling kerap sekali setiap 2 minit, dan perubahan tertangguh dicuba semula apabila Homika dibuka semula.</string>
     <string name="cloud_auto_backup_title">Backup cloud automatik</string>
-    <string name="cloud_auto_backup_body">Backup perubahan secara automatik selepas data Homika diedit.</string>
+    <string name="cloud_auto_backup_body">Backup perubahan semasa Homika dibuka.</string>
     <string name="cloud_auto_backup_off">Backup automatik dimatikan</string>
     <string name="cloud_auto_backup_running">Sedang backup perubahan…</string>
     <string name="cloud_auto_backup_pending">Perubahan sedang menunggu backup cloud</string>
     <string name="cloud_auto_backup_ready">Backup automatik sedia</string>
     <string name="cloud_auto_backup_last">Backup automatik terakhir: %1$s</string>
     <string name="local_backup_title">Backup lokal mudah alih</string>
-
     <string name="cloud_backup_success_title">Backup cloud selesai</string>
     <string name="cloud_backup_success_body">%1$d rekod Homika telah dienkripsi dan dibackup ke Homika Cloud.</string>
     <string name="cloud_restore_success_title">Pemulihan cloud selesai</string>
-
     <string name="cloud_error_title">Operasi Homika Cloud gagal</string>
     <string name="cloud_error_license">Lesen Homika Pro aktif tidak dapat disahkan untuk akses cloud. Sahkan lesen dan cuba lagi.</string>
     <string name="cloud_error_network">Homika tidak dapat menghubungi Homika Cloud. Semak sambungan internet dan cuba lagi.</string>
@@ -33,7 +31,6 @@
     <string name="cloud_error_invalid">Backup cloud yang dimuat turun tidak dapat dinyahsulit atau tidak sah.</string>
     <string name="cloud_error_rejected">Permintaan Homika Cloud ditolak oleh server.</string>
     <string name="cloud_error_server">Homika Cloud mengalami ralat server. Cuba semula sebentar lagi.</string>
-
     <string name="cloud_sync_title">Homika Cloud Sync</string>
     <string name="cloud_sync_body">Menyelaraskan data Homika antara peranti berlesen aktif semasa aplikasi dibuka.</string>
     <string name="cloud_sync_status">Status sync</string>
@@ -55,5 +52,18 @@
     <string name="cloud_sync_error_server">Homika Cloud mengalami ralat server. Sync akan dicuba semula apabila Homika dibuka.</string>
     <string name="cloud_backup_restore_warning">Restore pemulihan akan menggantikan database lokal semasa pada peranti ini dengan backup yang dipilih.</string>
     <string name="cloud_sync_backup_distinction">Cloud Sync memastikan peranti aktif sentiasa selaras. Cloud Backup ialah salinan pemulihan terenkripsi yang berasingan, bukan enjin live sync.</string>
-
+    <string name="cloud_sync_status_issue">Masalah sync</string>
+    <string name="cloud_sync_time_never">Belum pernah sync</string>
+    <string name="cloud_sync_time_now">Baru sahaja</string>
+    <string name="cloud_sync_time_minutes">%1$d min lalu</string>
+    <string name="cloud_sync_time_hours">%1$d jam lalu</string>
+    <string name="cloud_sync_compact_summary">%1$s · %2$s · %3$s</string>
+    <string name="cloud_recovery_row_title">Pemulihan cloud</string>
+    <string name="cloud_recovery_row_body">Pulihkan backup cloud pada peranti ini.</string>
+    <string name="cloud_recovery_title">Pemulihan cloud</string>
+    <string name="cloud_recovery_body">Pulihkan backup Homika Cloud terenkripsi yang terkini ke peranti ini.</string>
+    <string name="cloud_restore_no_backup_hint">Buat backup cloud dahulu sebelum menggunakan pemulihan.</string>
+    <string name="cloud_back">‹ Kembali</string>
+    <string name="cloud_learn_more">Cara Homika Cloud berfungsi</string>
+    <string name="cloud_info_title">Cara Homika Cloud berfungsi</string>
 </resources>

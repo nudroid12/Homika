@@ -1,29 +1,27 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="cloud_backup_page_subtitle">Keep local control of your data, with an encrypted Homika Cloud backup when you need it.</string>
+    <string name="cloud_backup_page_subtitle">Sync and protect your Homika data.</string>
     <string name="cloud_backup_title">Homika Cloud</string>
     <string name="cloud_backup_body">Create an encrypted cloud backup tied to your active Homika Pro licence. The backup is encrypted on this device before it is uploaded.</string>
     <string name="cloud_latest_backup">Latest cloud backup</string>
     <string name="cloud_checking">Checking…</string>
     <string name="cloud_no_backup">No cloud backup yet</string>
     <string name="cloud_latest_summary">%1$s · %2$d records · %3$s</string>
-    <string name="cloud_backup_now">Back up to Homika Cloud</string>
+    <string name="cloud_backup_now">Back up now</string>
     <string name="cloud_restore_latest">Restore latest cloud backup</string>
     <string name="cloud_encryption_note">Homika compresses and encrypts the backup with AES-256-GCM before upload. Cloud storage receives only the encrypted backup blob.</string>
     <string name="cloud_phase_two_note">Cloud Backup Phase 2 automatically queues local changes. Edits are grouped for 30 seconds, uploads are limited to at most once every 2 minutes, and pending changes retry when Homika starts again.</string>
     <string name="cloud_auto_backup_title">Automatic cloud backup</string>
-    <string name="cloud_auto_backup_body">Automatically back up changes after you edit Homika data.</string>
+    <string name="cloud_auto_backup_body">Backs up changes while Homika is open.</string>
     <string name="cloud_auto_backup_off">Automatic backup is off</string>
     <string name="cloud_auto_backup_running">Backing up changes…</string>
     <string name="cloud_auto_backup_pending">Changes are queued for cloud backup</string>
     <string name="cloud_auto_backup_ready">Automatic backup is ready</string>
     <string name="cloud_auto_backup_last">Last automatic backup: %1$s</string>
     <string name="local_backup_title">Portable local backup</string>
-
     <string name="cloud_backup_success_title">Cloud backup complete</string>
     <string name="cloud_backup_success_body">%1$d Homika records were encrypted and backed up to Homika Cloud.</string>
     <string name="cloud_restore_success_title">Cloud restore complete</string>
-
     <string name="cloud_error_title">Homika Cloud operation failed</string>
     <string name="cloud_error_license">Your active Homika Pro licence could not be verified for cloud access. Verify the licence and try again.</string>
     <string name="cloud_error_network">Homika could not reach Homika Cloud. Check your internet connection and try again.</string>
@@ -33,7 +31,6 @@
     <string name="cloud_error_invalid">The downloaded cloud backup could not be decrypted or is invalid.</string>
     <string name="cloud_error_rejected">The Homika Cloud request was rejected by the server.</string>
     <string name="cloud_error_server">Homika Cloud returned a server error. Try again shortly.</string>
-
     <string name="cloud_sync_title">Homika Cloud Sync</string>
     <string name="cloud_sync_body">Keeps Homika data aligned across active licensed devices while the app is open.</string>
     <string name="cloud_sync_status">Sync status</string>
@@ -55,5 +52,18 @@
     <string name="cloud_sync_error_server">Homika Cloud returned a server error. Sync will retry when Homika is open.</string>
     <string name="cloud_backup_restore_warning">Recovery restore replaces the current local database on this device with the selected backup.</string>
     <string name="cloud_sync_backup_distinction">Cloud Sync keeps active devices current. Cloud Backup is a separate encrypted recovery copy and is not the live-sync engine.</string>
-
+    <string name="cloud_sync_status_issue">Sync issue</string>
+    <string name="cloud_sync_time_never">Not synced yet</string>
+    <string name="cloud_sync_time_now">Just now</string>
+    <string name="cloud_sync_time_minutes">%1$d min ago</string>
+    <string name="cloud_sync_time_hours">%1$d hr ago</string>
+    <string name="cloud_sync_compact_summary">%1$s · %2$s · %3$s</string>
+    <string name="cloud_recovery_row_title">Cloud recovery</string>
+    <string name="cloud_recovery_row_body">Restore a cloud backup on this device.</string>
+    <string name="cloud_recovery_title">Cloud recovery</string>
+    <string name="cloud_recovery_body">Restore the latest encrypted Homika Cloud backup to this device.</string>
+    <string name="cloud_restore_no_backup_hint">Create a cloud backup first before using recovery restore.</string>
+    <string name="cloud_back">‹ Back</string>
+    <string name="cloud_learn_more">How Homika Cloud works</string>
+    <string name="cloud_info_title">How Homika Cloud works</string>
 </resources>

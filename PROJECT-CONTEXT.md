@@ -818,3 +818,42 @@ Validation:
 - XML resources parse successfully for EN/MS.
 - Kotlin delimiter and referenced resource checks performed locally.
 - GitHub Actions remains the final Android compile gate.
+
+## 25. Patch 15A - Homika Cloud Compact UX
+
+Purpose: simplify the Backup & Restore cloud area so cloud status, sync, automatic backup, manual backup and recovery are understandable at a glance without two oversized diagnostic-style cards.
+
+Changed files:
+- `app/src/main/java/com/homiq/app/ui/screens/BackupScreen.kt`
+- `app/src/main/res/values/homika_cloud_strings.xml`
+- `app/src/main/res/values-ms/homika_cloud_strings.xml`
+- `PROJECT-CONTEXT.md`
+
+Locked UI behavior:
+- Homika Cloud Sync and Homika Cloud Backup are merged into one compact `Homika Cloud` surface.
+- Sync status is summarized on one line: state, relative last-sync time and device count.
+- `Sync now` is a compact secondary action instead of a full-width primary button.
+- Automatic Cloud Backup remains a switch in the main card, with pending/running/off text shown only when it is relevant.
+- Latest cloud backup stays visible in the main card.
+- `Back up now` is the main cloud backup CTA.
+- Recovery is a compact `Cloud recovery` row that opens its own in-screen recovery page before the existing restore confirmation flow.
+- Long foreground-sync, encryption and Sync-vs-Backup explanations were removed from the main card and placed behind `How Homika Cloud works`.
+- Existing Homika Material theme/color tokens are used. No new palette or hardcoded replacement colors were introduced.
+- Portable local backup remains functionally unchanged.
+
+Not changed:
+- Cloud Sync protocol/merger/coordinator
+- encrypted Cloud Backup format/storage
+- automatic-backup scheduling/debounce behavior
+- licence/token/device-limit logic
+- purchase PIN / checkout / payments
+- backend Worker / D1 / R2
+- updater/signing
+- Money 14A
+
+Migration: none.
+
+Validation:
+- EN/MS XML resources parse successfully.
+- Kotlin delimiter/resource-reference checks performed locally.
+- GitHub Actions remains the final Android compile gate.
