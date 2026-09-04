@@ -20,13 +20,31 @@ jobs:
   apply-build-release:
     if: github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Synchronize checkout with latest main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          git fetch --no-tags origin "${BRANCH}"
+          REMOTE_REF="origin/${BRANCH}"
+
+          if git merge-base --is-ancestor HEAD "${REMOTE_REF}"; then
+            git merge --ff-only "${REMOTE_REF}"
+          elif [[ "$(git rev-parse HEAD)" != "$(git rev-parse "${REMOTE_REF}")" ]]; then
+            echo "::error::Local workflow commit is not an ancestor of ${REMOTE_REF}."
+            echo "::error::Refusing to overwrite remote history. Re-run from latest main."
+            exit 1
+          fi
+
+          echo "Checkout synchronized at $(git rev-parse --short HEAD)"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -44,9 +62,7 @@ jobs:
           set -euo pipefail
 
           ZIP="$(
-            find . -maxdepth 1 -type f \
-              \( -name 'Homika-Pro-*.zip' -o -name 'HOMIKA-Pro-*.zip' \) \
-              -printf '%f\n' |
+            find . -maxdepth 1 -type f               \( -name 'Homika-Pro-*.zip' -o -name 'HOMIKA-Pro-*.zip' \)               -printf '%f\n' |
             sort -V |
             tail -n1
           )"
@@ -166,15 +182,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          # One monotonically increasing release for every successful workflow run.
-          # Example: run 12 => v1.0.12 / versionCode 10012.
           VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
           VERSION_CODE="$((10000 + GITHUB_RUN_NUMBER))"
 
           echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "Homika version: $VERSION_NAME ($VERSION_CODE)"
+
+      - name: Prepare patch commit locally
+        if: steps.patch.outputs.has_patch == 'true'
+        shell: bash
+        env:
+          PATCH_ZIP: ${{ steps.patch.outputs.zip }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+          else
+            git commit -m "chore: apply ${PATCH_ZIP} for Homika v${VERSION_NAME}"
+          fi
 
       - name: Decode Homika release keystore
         shell: bash
@@ -210,6 +242,62 @@ jobs:
 
           chmod +x gradlew
           ./gradlew assembleRelease --console=plain
+
+      - name: Push verified patch safely
+        if: steps.patch.outputs.has_patch == 'true'
+        shell: bash
+        env:
+          HOMIKA_VERSION_NAME: ${{ steps.version.outputs.name }}
+          HOMIKA_VERSION_CODE: ${{ steps.version.outputs.code }}
+          HOMIKA_KEYSTORE_PATH: ${{ runner.temp }}/homika-release.jks
+          HOMIKA_KEYSTORE_PASSWORD: ${{ secrets.HOMIKA_RELEASE_KEYSTORE_PASSWORD }}
+          HOMIKA_KEY_ALIAS: homika
+          HOMIKA_KEY_PASSWORD: ${{ secrets.HOMIKA_RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          BRANCH="${GITHUB_REF_NAME}"
+          REMOTE_REF="origin/${BRANCH}"
+
+          rebuild_after_rebase() {
+            echo "Remote main advanced while this workflow was building."
+            echo "Rebuilding after rebase so pushed source and APK match."
+            rm -rf app/build
+            chmod +x gradlew
+            ./gradlew assembleRelease --console=plain
+          }
+
+          for attempt in 1 2 3; do
+            echo "Safe push attempt ${attempt}/3"
+            git fetch --no-tags origin "${BRANCH}"
+
+            if ! git merge-base --is-ancestor "${REMOTE_REF}" HEAD; then
+              echo "Remote branch has new commits. Rebasing patch onto latest ${BRANCH}."
+
+              if ! git rebase "${REMOTE_REF}"; then
+                git rebase --abort || true
+                echo "::error::Patch conflicts with newer commits on ${BRANCH}."
+                echo "::error::No force push was used."
+                exit 1
+              fi
+
+              rebuild_after_rebase
+            fi
+
+            if git push origin "HEAD:${BRANCH}"; then
+              echo "Patch pushed successfully."
+              exit 0
+            fi
+
+            if [[ "$attempt" -lt 3 ]]; then
+              echo "Remote changed again before push completed. Retrying safely."
+              sleep 2
+            fi
+          done
+
+          echo "::error::Could not push after 3 safe attempts because ${BRANCH} kept changing."
+          echo "::error::No force push was used. Re-run the workflow."
+          exit 1
 
       - name: Verify and prepare signed APK
         id: apk
@@ -280,27 +368,6 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-      - name: Commit successful patch
-        if: steps.patch.outputs.has_patch == 'true'
-        shell: bash
-        env:
-          PATCH_ZIP: ${{ steps.patch.outputs.zip }}
-          VERSION_NAME: ${{ steps.version.outputs.name }}
-        run: |
-          set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add -A
-
-          if git diff --cached --quiet; then
-            echo "Nothing to commit."
-          else
-            git commit -m "chore: apply ${PATCH_ZIP} for Homika v${VERSION_NAME}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-
       - name: Publish GitHub Release for updater
         shell: bash
         env:
@@ -322,14 +389,7 @@ jobs:
             NOTES="Automated Homika Pro signed release ${TAG}."
           fi
 
-          gh release create "$TAG" \
-            "$APK" \
-            "$SHA" \
-            "$CERT" \
-            --target "$(git rev-parse HEAD)" \
-            --title "Homika Pro ${TAG}" \
-            --notes "$NOTES" \
-            --latest
+          gh release create "$TAG"             "$APK"             "$SHA"             "$CERT"             --target "$(git rev-parse HEAD)"             --title "Homika Pro ${TAG}"             --notes "$NOTES"             --latest
 
       - name: Summary
         shell: bash
@@ -347,6 +407,7 @@ jobs:
             echo "- Signed release APK built with the Homika Pro release key."
             echo "- GitHub Release published for the in-app updater."
             echo "- Signed APK also uploaded as an Actions artifact."
+            echo "- Push safety: fetch/rebase/rebuild retry enabled; no force push."
             if [[ "$HAS_PATCH" == "true" ]]; then
               echo "- Applied patch: ${PATCH_ZIP}"
             else
