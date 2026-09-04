@@ -777,3 +777,11 @@ One-time recovery after installing 13C.9:
 - `BREVO_API_KEY` must be a Secret.
 - `HOMIKA_EMAIL_FROM` may remain a dashboard variable; `keep_vars=true` is intended to preserve it.
 - If a critical required secret is absent, future Worker deploys should fail instead of silently publishing a partially configured production Worker.
+
+
+## Patch 13C.9.1 - Deploy Config Path Fix
+- Fixes Cloudflare deploy failure `The entry-point file at "src/index.js" was not found`.
+- Cause: hardened generated Wrangler config lives under `.homika-wrangler/`, so Wrangler resolves relative `main` from that directory.
+- `prepare-worker-deploy-config.mjs` now rebases the existing `main` path relative to the generated config directory (normally `../src/index.js`).
+- 13C.9 secret/variable persistence hardening remains unchanged.
+- No D1 migration. No Android, licensing, sync, payment, or store behavior changes.

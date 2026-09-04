@@ -129,6 +129,14 @@ async function main() {
 
   parsed.keep_vars = true;
 
+  // The generated deploy config lives one directory below the backend root.
+  // Wrangler resolves relative entry-point paths from the config file location,
+  // so preserve the original target by rebasing `main` into .homika-wrangler/.
+  if (typeof parsed.main === "string" && !path.isAbsolute(parsed.main)) {
+    const absoluteMain = path.resolve(root, parsed.main);
+    parsed.main = path.relative(generatedDir, absoluteMain).split(path.sep).join("/");
+  }
+
   const existingRequired = Array.isArray(parsed?.secrets?.required)
     ? parsed.secrets.required.filter((value) => typeof value === "string")
     : [];
@@ -155,6 +163,7 @@ async function main() {
   console.log("Homika Worker deploy config hardened.");
   console.log("- Dashboard vars preserved: keep_vars=true");
   console.log(`- Required secrets validated on deploy: ${REQUIRED_SECRETS.length}`);
+  console.log(`- Worker entry point rebased for generated config: ${parsed.main}`);
   console.log("- Existing D1/R2 bindings copied from wrangler.jsonc without replacement.");
 }
 
