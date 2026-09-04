@@ -122,6 +122,43 @@ function configureQr(config){
   return true;
 }
 
+
+function telegramOptInHtml(c){
+  const tg=c?.telegram_notification;
+  if(!tg?.available)return '';
+  if(tg.linked){
+    return `<div class="telegram-optin connected"><strong>Telegram disambungkan ✓</strong><p>Anda boleh tutup halaman ini. Homika Bot akan mesej anda sebaik sahaja bayaran diluluskan atau ditolak.</p></div>`;
+  }
+  return `<div class="telegram-optin"><strong>Dapatkan keputusan terus di Telegram</strong><p>Email kekal sebagai backup. Sambungkan Homika Bot supaya anda terus dapat notifikasi walaupun halaman ini sudah ditutup.</p><button class="button telegram-button" type="button" data-connect-telegram>Aktifkan Notifikasi Telegram</button><small>Tekan butang di atas, kemudian tekan <b>START</b> dalam Telegram.</small></div>`;
+}
+
+function wireTelegramOptIn(c){
+  const button=paymentStatus.querySelector('[data-connect-telegram]');
+  if(!button)return;
+  button.addEventListener('click',async()=>{
+    button.disabled=true;
+    const before=button.textContent;
+    button.textContent='Menyambungkan…';
+    try{
+      const b=await api('/v1/store/telegram/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({checkout_token:state.checkoutToken})});
+      if(b.telegram?.linked){
+        const latest=await api(`/v1/store/checkout?token=${encodeURIComponent(state.checkoutToken)}`);
+        renderCheckout(latest.checkout);
+        return;
+      }
+      if(!b.telegram?.link_url)throw Object.assign(new Error('telegram_link_unavailable'),{code:'telegram_link_unavailable'});
+      location.href=b.telegram.link_url;
+    }catch(err){
+      button.disabled=false;
+      button.textContent=before;
+      const note=document.createElement('p');
+      note.className='telegram-error';
+      note.textContent=`Telegram belum dapat disambungkan (${err.code||'error'}). Email masih akan digunakan sebagai backup.`;
+      button.closest('.telegram-optin')?.appendChild(note);
+    }
+  });
+}
+
 function renderManualPayment(c){
   if(c.status==='completed'){
     paymentPanel.classList.add('hidden');
@@ -147,12 +184,14 @@ function renderManualPayment(c){
   }
   if(submission.status==='submitted'){
     proofForm.classList.add('hidden');
-    paymentStatus.innerHTML=`<strong>Bayaran diterima ✓</strong><p>Bukti pembayaran sudah dihantar${submission.submitted_at?` pada ${escapeHtml(submission.submitted_at)}`:''}. Menunggu pengesahan manual. Tak perlu buat bayaran kali kedua. Jika halaman ini dibiarkan terbuka, status akan dikemas kini automatik selepas admin approve. Anda juga boleh tutup halaman ini dan buka semula menggunakan link semakan.</p>`;
+    paymentStatus.innerHTML=`<strong>Bayaran diterima ✓</strong><p>Bukti pembayaran sudah dihantar${submission.submitted_at?` pada ${escapeHtml(submission.submitted_at)}`:''}. Menunggu pengesahan manual. Tak perlu buat bayaran kali kedua.</p>${telegramOptInHtml(c)}<button class="status-link-button" type="button" data-copy-status-inline>Salin link semakan bayaran</button>`;
+    paymentStatus.querySelector('[data-copy-status-inline]')?.addEventListener('click',e=>copyValue(checkoutStatusUrl(),e.currentTarget,'Link disalin ✓'));
+    wireTelegramOptIn(c);
     return;
   }
   if(submission.status==='rejected'){
-    proofForm.classList.remove('hidden');
-    paymentStatus.innerHTML=`<strong>Bukti belum dapat disahkan.</strong><p>${escapeHtml(submission.admin_note||'Sila semak transaksi dan upload semula bukti pembayaran.')}</p>`;
+    proofForm.classList.add('hidden');
+    paymentStatus.innerHTML=`<strong>Bayaran tidak dapat disahkan.</strong><p><b>Sebab:</b> ${escapeHtml(submission.admin_note||'Bukti pembayaran tidak dapat disahkan.')}</p><p>Order ini telah ditutup. Sila buat <b>order baru</b> dan muat naik resit/bukti pembayaran yang betul.</p>`;
     return;
   }
   if(submission.status==='approved'){

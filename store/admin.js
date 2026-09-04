@@ -58,7 +58,7 @@ function renderPayments(items){
     const card=document.createElement('article');card.className='admin-payment';
     const statusUrl=item.checkout_token?customerStatusUrl(item.checkout_token):'';
     const resendButton=(item.status==='approved'||item.status==='rejected')&&item.email
-      ?'<button class="button secondary resend-email-button" type="button">Hantar semula email</button>':'';
+      ?'<button class="button secondary resend-email-button" type="button">Hantar semula notifikasi</button>':'';
     const completion=item.status==='approved'
       ?`<div class="admin-completion"><strong>Bayaran telah diluluskan ✓</strong>${item.action==='buy'&&item.license_key?`<p>Licence Key customer:</p><code>${esc(item.license_key)}</code>`:'<p>Lesen sedia ada customer telah dikemas kini. Tiada key baharu diperlukan.</p>'}<p>Email customer: <strong>${esc(item.email||'-')}</strong></p><div class="admin-completion-actions">${item.license_key?'<button class="button secondary history-copy-license" type="button">Salin Licence Key</button>':''}${statusUrl?'<button class="button secondary history-copy-status" type="button">Salin link customer</button>':''}${resendButton}</div></div>`
       :item.status==='rejected'
@@ -102,10 +102,19 @@ function emailDeliveryText(delivery,email){
   if(delivery?.ok&&delivery?.skipped)return '';
   if(delivery?.ok)return ` Email telah dihantar ke ${email||'customer'}.`;
   if(delivery?.configured===false)return ' Lesen/order telah diproses, tetapi servis email belum dikonfigurasi.';
-  return ' Lesen/order telah diproses, tetapi email customer gagal dihantar. Gunakan butang Hantar semula email selepas semak konfigurasi.';
+  return ' Lesen/order telah diproses, tetapi email customer gagal dihantar. Gunakan butang Hantar semula notifikasi selepas semak konfigurasi.';
 }
 
-function showReviewResult(item,action,checkout,emailDelivery,note=''){
+function telegramDeliveryText(delivery){
+  if(!delivery)return '';
+  if(delivery.ok&&delivery.linked)return ' Telegram customer telah dihantar ✓';
+  if(delivery.ok&&delivery.skipped==='customer_not_linked')return ' Customer belum sambungkan Telegram.';
+  if(delivery.configured===false)return ' Telegram customer belum dikonfigurasi.';
+  if(delivery.linked&&delivery.ok===false)return ' Telegram customer gagal dihantar.';
+  return '';
+}
+
+function showReviewResult(item,action,checkout,emailDelivery,telegramDelivery,note=''){
   const approved=action==='approve';
   const statusUrl=checkout?.token?customerStatusUrl(checkout.token):(item.checkout_token?customerStatusUrl(item.checkout_token):'');
   const licenseKey=approved&&checkout?.action==='buy'?checkout.license_key||'':'';
@@ -113,11 +122,11 @@ function showReviewResult(item,action,checkout,emailDelivery,note=''){
   document.querySelector('#review-result-icon').textContent=approved?'✓':'×';
   resultTitle.textContent=approved?'Bayaran berjaya diluluskan ✓':'Bayaran telah ditolak';
   if(approved&&checkout?.action==='buy'){
-    resultCopy.textContent=`Lesen Homika Pro baharu telah diaktifkan.${emailDeliveryText(emailDelivery,item.email)}`;
+    resultCopy.textContent=`Lesen Homika Pro baharu telah diaktifkan.${emailDeliveryText(emailDelivery,item.email)}${telegramDeliveryText(telegramDelivery)}`;
   }else if(approved){
-    resultCopy.textContent=`Lesen sedia ada customer telah dikemas kini. Customer hanya perlu kembali ke Homika dan tekan Verify Now.${emailDeliveryText(emailDelivery,item.email)}`;
+    resultCopy.textContent=`Lesen sedia ada customer telah dikemas kini. Customer hanya perlu kembali ke Homika dan tekan Verify Now.${emailDeliveryText(emailDelivery,item.email)}${telegramDeliveryText(telegramDelivery)}`;
   }else{
-    resultCopy.textContent=`Order telah ditolak. Sebab: ${note}. Customer diminta buat order baru dengan resit yang betul.${emailDeliveryText(emailDelivery,item.email)}`;
+    resultCopy.textContent=`Order telah ditolak. Sebab: ${note}. Customer diminta buat order baru dengan resit yang betul.${emailDeliveryText(emailDelivery,item.email)}${telegramDeliveryText(telegramDelivery)}`;
   }
   resultLicenseWrap.classList.toggle('hidden',!licenseKey);
   resultCopyLicense.classList.toggle('hidden',!licenseKey);
@@ -130,12 +139,12 @@ function showReviewResult(item,action,checkout,emailDelivery,note=''){
 
 async function review(item,action,card){
   const note=card.querySelector('.admin-note')?.value.trim()||'';
-  if(action==='reject'&&!note){alert('Masukkan sebab Reject dahulu. Sebab ini akan dihantar kepada customer melalui email.');card.querySelector('.admin-note')?.focus();return}
+  if(action==='reject'&&!note){alert('Masukkan sebab Reject dahulu. Sebab ini akan dihantar kepada customer melalui email dan Telegram jika disambungkan.');card.querySelector('.admin-note')?.focus();return}
   const buttons=[...card.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
   try{
     const response=await api('/v1/admin/payments/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({submission_id:item.id,action,admin_note:note})});
     await loadPayments();
-    showReviewResult(item,action,response.checkout||null,response.email_delivery||null,note);
+    showReviewResult(item,action,response.checkout||null,response.email_delivery||null,response.telegram_delivery||null,note);
   }catch(err){
     if(err.code==='unauthorized'||err.code==='admin_not_configured'){
       sessionStorage.removeItem('homika_admin_secret');state.secret='';secretInput.value='';showLogin(err.code==='admin_not_configured'?'Admin Secret belum dikonfigurasi pada Worker.':'Sesi admin tamat atau Admin Secret tidak sah. Sila log masuk semula.');return;
@@ -149,11 +158,14 @@ async function resendEmail(item,button){
   const before=button.textContent;button.disabled=true;button.textContent='Menghantar…';
   try{
     const response=await api('/v1/admin/payments/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({submission_id:item.id,action:'resend_email'})});
-    const delivery=response.email_delivery||{};
-    if(delivery.ok){button.textContent='Email dihantar ✓';setTimeout(()=>{button.textContent=before;button.disabled=false},1800);return}
-    if(delivery.configured===false)alert('Servis email belum dikonfigurasi pada Worker.');
-    else alert(`Email gagal dihantar (${delivery.error||'error'}).`);
-  }catch(err){alert(`Email gagal dihantar (${err.code||'error'}).`)}
+    const email=response.email_delivery||{};
+    const telegram=response.telegram_delivery||{};
+    if(email.ok||(telegram.ok&&telegram.linked)){
+      button.textContent='Notifikasi dihantar ✓';setTimeout(()=>{button.textContent=before;button.disabled=false},1800);return;
+    }
+    if(email.configured===false&&telegram.skipped==='customer_not_linked')alert('Email belum dikonfigurasi dan customer belum sambungkan Telegram.');
+    else alert(`Notifikasi belum berjaya dihantar (email: ${email.error||email.skipped||'n/a'}, Telegram: ${telegram.error||telegram.skipped||'n/a'}).`);
+  }catch(err){alert(`Notifikasi gagal dihantar (${err.code||'error'}).`)}
   button.textContent=before;button.disabled=false;
 }
 

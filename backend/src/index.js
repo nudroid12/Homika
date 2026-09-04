@@ -16,7 +16,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 18,
+          version: 19,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -41,6 +41,9 @@ export default {
           customer_email_delivery: true,
           customer_email_provider: "brevo",
           customer_email_configured: Boolean(cleanString(env.BREVO_API_KEY, 400) && parseBrevoSender(env.HOMIKA_EMAIL_FROM, env.HOMIKA_EMAIL_FROM_NAME)),
+          customer_telegram_notifications: true,
+          customer_telegram_bot_shared_with_admin: true,
+          customer_telegram_auto_webhook_setup: true,
           rejection_reason_required: true,
           same_license_renewal: true,
           exact_plan_key_in_token: true,
@@ -90,6 +93,14 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/v1/store/manual-payment/submit") {
         return submitManualPayment(request, env, ctx);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/store/telegram/link") {
+        return createCustomerTelegramLink(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/v1/store/telegram/webhook") {
+        return handleCustomerTelegramWebhook(request, env);
       }
 
       if (request.method === "GET" && url.pathname === "/v1/admin/payments") {
@@ -506,6 +517,281 @@ async function notifyAdminManualPayment(env, intent, submissionId, paymentRefere
 }
 
 
+function telegramBotToken(env) {
+  return cleanString(env.HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN, 300);
+}
+
+async function telegramApi(env, method, payload = {}) {
+  const botToken = telegramBotToken(env);
+  if (!botToken) throw new Error("telegram_bot_not_configured");
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  let data = null;
+  try { data = await response.json(); } catch (_) { data = null; }
+  if (!response.ok || !data?.ok) {
+    console.error("telegram_api_failed", { method, status: response.status, description: data?.description || null });
+    throw new Error(`telegram_${method.toLowerCase()}_failed`);
+  }
+  return data.result;
+}
+
+async function getCustomerTelegramConfig(env) {
+  try {
+    return await env.DB.prepare(
+      `SELECT id, bot_username, webhook_secret, webhook_url, configured_at, updated_at
+         FROM homika_telegram_config WHERE id = 'customer' LIMIT 1`
+    ).first();
+  } catch (err) {
+    if (String(err?.message || err).toLowerCase().includes("no such table")) return null;
+    throw err;
+  }
+}
+
+async function ensureCustomerTelegramWebhook(request, env) {
+  if (!telegramBotToken(env)) throw new Error("telegram_bot_not_configured");
+  const requestUrl = new URL(request.url);
+  const webhookUrl = `${requestUrl.origin}/v1/store/telegram/webhook`;
+  const current = await getCustomerTelegramConfig(env);
+  if (current?.bot_username && current?.webhook_secret && current?.webhook_url === webhookUrl) return current;
+
+  const identity = await telegramApi(env, "getMe", {});
+  const botUsername = cleanString(identity?.username, 120);
+  if (!botUsername) throw new Error("telegram_bot_username_missing");
+  const webhookSecret = generateCheckoutToken();
+  await telegramApi(env, "setWebhook", {
+    url: webhookUrl,
+    secret_token: webhookSecret,
+    allowed_updates: ["message"],
+    drop_pending_updates: false,
+  });
+  await env.DB.prepare(
+    `INSERT INTO homika_telegram_config (id, bot_username, webhook_secret, webhook_url, configured_at, updated_at)
+     VALUES ('customer', ?1, ?2, ?3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     ON CONFLICT(id) DO UPDATE SET
+       bot_username = excluded.bot_username,
+       webhook_secret = excluded.webhook_secret,
+       webhook_url = excluded.webhook_url,
+       configured_at = CURRENT_TIMESTAMP,
+       updated_at = CURRENT_TIMESTAMP`
+  ).bind(botUsername, webhookSecret, webhookUrl).run();
+  return { id: "customer", bot_username: botUsername, webhook_secret: webhookSecret, webhook_url: webhookUrl };
+}
+
+async function getCheckoutTelegramLink(env, checkoutId) {
+  try {
+    return await env.DB.prepare(
+      `SELECT id, checkout_id, link_token, chat_id, telegram_username, telegram_first_name,
+              status, created_at, linked_at, updated_at
+         FROM checkout_telegram_links WHERE checkout_id = ?1 LIMIT 1`
+    ).bind(checkoutId).first();
+  } catch (err) {
+    if (String(err?.message || err).toLowerCase().includes("no such table")) return null;
+    throw err;
+  }
+}
+
+async function createCustomerTelegramLink(request, env) {
+  const body = await readJson(request);
+  if (!body) return badRequest("invalid_json");
+  const checkoutToken = cleanString(body.checkout_token, 160);
+  if (!checkoutToken) return badRequest("checkout_token_required");
+  const intent = await getCheckoutIntent(env, checkoutToken);
+  if (!intent) return json({ ok: false, error: "checkout_not_found" }, 404);
+  const submission = await getManualPaymentSubmissionForCheckout(env, intent.id);
+  if (!submission) return json({ ok: false, error: "payment_submission_required" }, 409);
+
+  let config;
+  try {
+    config = await ensureCustomerTelegramWebhook(request, env);
+  } catch (err) {
+    console.error("customer_telegram_setup_failed", err);
+    return json({ ok: false, error: String(err?.message || err || "telegram_setup_failed") }, 503);
+  }
+
+  let link = await getCheckoutTelegramLink(env, intent.id);
+  if (!link) {
+    const linkToken = generateCheckoutToken();
+    await env.DB.prepare(
+      `INSERT INTO checkout_telegram_links
+         (id, checkout_id, link_token, status, created_at, updated_at)
+       VALUES (?1, ?2, ?3, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).bind(crypto.randomUUID(), intent.id, linkToken).run();
+    link = await getCheckoutTelegramLink(env, intent.id);
+  }
+
+  const botUsername = cleanString(config?.bot_username, 120);
+  if (!botUsername || !link?.link_token) return json({ ok: false, error: "telegram_link_unavailable" }, 503);
+  return json({
+    ok: true,
+    telegram: {
+      linked: link.status === "linked" && Boolean(link.chat_id),
+      status: link.status || "pending",
+      link_url: `https://t.me/${encodeURIComponent(botUsername)}?start=h_${encodeURIComponent(link.link_token)}`,
+      bot_username: botUsername,
+    },
+  });
+}
+
+function telegramWebhookSecretMatches(request, configuredSecret) {
+  const supplied = cleanString(request.headers.get("x-telegram-bot-api-secret-token"), 300);
+  const expected = cleanString(configuredSecret, 300);
+  return Boolean(supplied && expected && supplied === expected);
+}
+
+async function getCheckoutIntentById(env, id) {
+  return env.DB.prepare(
+    `SELECT id, public_token, product_id, action, license_id,
+            customer_email, plan_key, amount_cents, currency, status,
+            provider, provider_reference, target_expires_at,
+            resulting_license_id, resulting_license_key,
+            created_at, updated_at, expires_at, paid_at, completed_at
+       FROM checkout_intents WHERE id = ?1 LIMIT 1`
+  ).bind(id).first();
+}
+
+async function sendTelegramText(env, chatId, text) {
+  return telegramApi(env, "sendMessage", {
+    chat_id: String(chatId),
+    text,
+    disable_web_page_preview: true,
+  });
+}
+
+function customerTelegramDecisionText(checkout, decision, rejectionReason = "") {
+  const orderRef = homikaOrderReference(checkout);
+  const plan = homikaPlanLabel(checkout?.plan_key);
+  const amount = homikaMoney(checkout?.amount_cents);
+  if (decision === "reject") {
+    const reason = cleanString(rejectionReason, 500) || "Bukti pembayaran tidak dapat disahkan.";
+    return [
+      "❌ Bayaran Homika tidak dapat disahkan",
+      `Order: ${orderRef}`,
+      `Pelan: ${plan} · ${amount}`,
+      `Sebab: ${reason}`,
+      "",
+      "Tiada pengaktifan atau pembaharuan dibuat.",
+      "Sila buat order baru dan muat naik resit/bukti pembayaran yang betul.",
+    ].join("\n");
+  }
+  if (checkout?.action === "buy") {
+    const key = cleanString(checkout?.license_key, 120);
+    return [
+      "✅ Homika Pro telah diaktifkan",
+      `Order: ${orderRef}`,
+      `Pelan: ${plan} · ${amount}`,
+      "",
+      key ? `Licence Key: ${key}` : "Licence Key sedang disediakan.",
+      "",
+      "Buka Homika → Activate Licence dan masukkan Licence Key di atas.",
+      "Simpan mesej ini sebagai rujukan.",
+    ].join("\n");
+  }
+  return [
+    "✅ Bayaran Homika telah diluluskan",
+    `Order: ${orderRef}`,
+    `Pelan: ${plan} · ${amount}`,
+    "",
+    "Lesen Homika sedia ada anda telah dikemas kini. Tiada Licence Key baharu diperlukan.",
+    "Buka Homika → Licence → Verify Now untuk refresh status lesen.",
+  ].join("\n");
+}
+
+async function sendCustomerTelegramDecision(env, { checkout, decision, rejectionReason = "" }) {
+  if (!checkout?.token) return { configured: Boolean(telegramBotToken(env)), linked: false, ok: false, skipped: "checkout_token_missing" };
+  const intent = await getCheckoutIntent(env, checkout.token);
+  if (!intent) return { configured: Boolean(telegramBotToken(env)), linked: false, ok: false, skipped: "checkout_not_found" };
+  const link = await getCheckoutTelegramLink(env, intent.id);
+  if (!link?.chat_id || link.status !== "linked") {
+    return { configured: Boolean(telegramBotToken(env)), linked: false, ok: true, skipped: "customer_not_linked" };
+  }
+  try {
+    await sendTelegramText(env, link.chat_id, customerTelegramDecisionText(checkout, decision, rejectionReason));
+    return { configured: true, linked: true, ok: true };
+  } catch (err) {
+    console.error("customer_telegram_delivery_failed", err);
+    return { configured: true, linked: true, ok: false, error: String(err?.message || err || "telegram_delivery_failed") };
+  }
+}
+
+async function sendTelegramCurrentCheckoutStatus(env, checkoutId, chatId) {
+  const intent = await getCheckoutIntentById(env, checkoutId);
+  if (!intent) {
+    await sendTelegramText(env, chatId, "Homika: order ini tidak dapat ditemui.");
+    return;
+  }
+  const checkout = await checkoutIntentJson(env, intent);
+  const submission = await getManualPaymentSubmissionForCheckout(env, checkoutId);
+  if (submission?.status === "rejected") {
+    await sendTelegramText(env, chatId, customerTelegramDecisionText(checkout, "reject", submission.admin_note || "Bukti pembayaran tidak dapat disahkan."));
+    return;
+  }
+  if (intent.status === "completed" || submission?.status === "approved") {
+    await sendTelegramText(env, chatId, customerTelegramDecisionText(checkout, "approve"));
+    return;
+  }
+  await sendTelegramText(env, chatId, [
+    "🔔 Notifikasi Homika disambungkan ✓",
+    `Order: ${homikaOrderReference(checkout)}`,
+    "",
+    "Bukti pembayaran sedang menunggu semakan admin.",
+    "Anda boleh tutup halaman checkout. Bot ini akan mesej anda apabila bayaran diluluskan atau ditolak.",
+  ].join("\n"));
+}
+
+async function handleCustomerTelegramWebhook(request, env) {
+  const config = await getCustomerTelegramConfig(env);
+  if (!config?.webhook_secret) return json({ ok: false, error: "telegram_webhook_not_configured" }, 503);
+  if (!telegramWebhookSecretMatches(request, config.webhook_secret)) return json({ ok: false, error: "unauthorized" }, 401);
+  let update;
+  try { update = await request.json(); } catch (_) { return badRequest("invalid_json"); }
+  const message = update?.message;
+  if (!message?.chat?.id || typeof message?.text !== "string") return json({ ok: true, ignored: true });
+  const chatId = String(message.chat.id);
+  if (message.chat.type !== "private") {
+    await sendTelegramText(env, chatId, "Untuk keselamatan, sambungkan Homika melalui chat peribadi dengan bot ini.");
+    return json({ ok: true, ignored: "non_private_chat" });
+  }
+  const parts = message.text.trim().split(/\s+/);
+  const command = parts[0].split("@")[0].toLowerCase();
+  const payload = cleanString(parts[1], 120);
+  if (command !== "/start" || !payload?.startsWith("h_")) {
+    await sendTelegramText(env, chatId, "Untuk sambungkan notifikasi pembayaran, tekan butang Telegram dari halaman checkout Homika kemudian tekan START di sini.");
+    return json({ ok: true, ignored: "start_payload_missing" });
+  }
+  const linkToken = payload.slice(2);
+  const link = await env.DB.prepare(
+    `SELECT id, checkout_id, link_token, chat_id, status
+       FROM checkout_telegram_links WHERE link_token = ?1 LIMIT 1`
+  ).bind(linkToken).first();
+  if (!link) {
+    await sendTelegramText(env, chatId, "Link Homika ini tidak sah atau telah tamat.");
+    return json({ ok: true, ignored: "link_not_found" });
+  }
+  if (link.status === "linked" && link.chat_id && String(link.chat_id) !== chatId) {
+    await sendTelegramText(env, chatId, "Link Homika ini sudah disambungkan ke akaun Telegram lain.");
+    return json({ ok: true, ignored: "already_linked_elsewhere" });
+  }
+  if (link.status !== "linked" || !link.chat_id) {
+    await env.DB.prepare(
+      `UPDATE checkout_telegram_links
+          SET chat_id = ?1, telegram_username = ?2, telegram_first_name = ?3,
+              status = 'linked', linked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?4`
+    ).bind(
+      chatId,
+      cleanString(message.from?.username, 120) || null,
+      cleanString(message.from?.first_name, 120) || null,
+      link.id
+    ).run();
+  }
+  await sendTelegramCurrentCheckoutStatus(env, link.checkout_id, chatId);
+  return json({ ok: true });
+}
+
+
 function homikaPlanLabel(planKey) {
   return ({
     "1_month": "1 Bulan",
@@ -716,6 +1002,7 @@ async function submitManualPayment(request, env, ctx) {
 
   const existing = await getManualPaymentSubmissionForCheckout(env, intent.id);
   if (existing?.status === "approved") return json({ ok: false, error: "payment_already_approved" }, 409);
+  if (existing?.status === "rejected") return json({ ok: false, error: "payment_rejected_create_new_order" }, 409);
 
   const submissionId = existing?.id || crypto.randomUUID();
   const extension = proofExtensionFor(proofContentType);
@@ -877,7 +1164,12 @@ async function reviewManualPayment(request, env) {
       rejectionReason: submission.admin_note || "Bukti pembayaran tidak dapat disahkan.",
       forceResend: true,
     });
-    return json({ ok: true, checkout, email_delivery: emailDelivery });
+    const telegramDelivery = await sendCustomerTelegramDecision(env, {
+      checkout,
+      decision: submission.status === "approved" ? "approve" : "reject",
+      rejectionReason: submission.admin_note || "Bukti pembayaran tidak dapat disahkan.",
+    });
+    return json({ ok: true, checkout, email_delivery: emailDelivery, telegram_delivery: telegramDelivery });
   }
 
   if (action === "reject") {
@@ -901,7 +1193,12 @@ async function reviewManualPayment(request, env) {
       decision: "reject",
       rejectionReason: adminNote,
     });
-    return json({ ok: true, checkout: checkoutJson, email_delivery: emailDelivery });
+    const telegramDelivery = await sendCustomerTelegramDecision(env, {
+      checkout: checkoutJson,
+      decision: "reject",
+      rejectionReason: adminNote,
+    });
+    return json({ ok: true, checkout: checkoutJson, email_delivery: emailDelivery, telegram_delivery: telegramDelivery });
   }
 
   if (submission.status === "approved" || submission.checkout_status === "completed") {
@@ -941,7 +1238,11 @@ async function reviewManualPayment(request, env) {
     checkout: checkoutJson,
     decision: "approve",
   });
-  return json({ ok: true, checkout: checkoutJson, email_delivery: emailDelivery });
+  const telegramDelivery = await sendCustomerTelegramDecision(env, {
+    checkout: checkoutJson,
+    decision: "approve",
+  });
+  return json({ ok: true, checkout: checkoutJson, email_delivery: emailDelivery, telegram_delivery: telegramDelivery });
 }
 
 function paymentCompletionErrorCode(err) {
@@ -1027,6 +1328,7 @@ async function checkoutIntentJson(env, intent) {
   let licenseHint = "";
   let entitlementExpiresAt = intent?.target_expires_at || null;
   const manualPayment = intent?.id ? await getManualPaymentSubmissionForCheckout(env, intent.id) : null;
+  const telegramLink = intent?.id ? await getCheckoutTelegramLink(env, intent.id) : null;
   if (intent?.license_id) {
     const license = await getLicenseById(env, intent.license_id);
     if (license) {
@@ -1055,6 +1357,11 @@ async function checkoutIntentJson(env, intent) {
       reviewed_at: manualPayment.reviewed_at || null,
       admin_note: manualPayment.admin_note || null,
     } : null,
+    telegram_notification: {
+      available: Boolean(telegramBotToken(env)),
+      linked: telegramLink?.status === "linked" && Boolean(telegramLink?.chat_id),
+      status: telegramLink?.status || "not_linked",
+    },
     ...(intent.status === "completed" && intent.action === "buy" ? { license_key: intent.resulting_license_key || null } : {}),
   };
 }

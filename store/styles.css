@@ -115,3 +115,13 @@ input[type="file"] { padding: 11px 12px; min-height: 48px; }
 .checkout-result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 10px; }
 .customer-license-key { user-select: all; }
 @media (max-width: 460px) { .checkout-result-actions { grid-template-columns: 1fr; } }
+
+/* Patch 13C.7: customer Telegram opt-in after payment proof submission. */
+.telegram-optin { margin-top: 16px; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: rgba(38, 166, 154, .08); }
+.telegram-optin.connected { background: rgba(29, 111, 85, .09); }
+.telegram-optin strong { display: block; }
+.telegram-optin p { margin: 6px 0 12px; color: var(--muted); }
+.telegram-optin small { display: block; margin-top: 9px; color: var(--muted); line-height: 1.45; }
+.telegram-button { width: 100%; background: #229ED9; color: #fff; }
+.telegram-button:disabled { opacity: .65; cursor: wait; }
+.telegram-error { margin-top: 10px !important; font-size: 12px; }
