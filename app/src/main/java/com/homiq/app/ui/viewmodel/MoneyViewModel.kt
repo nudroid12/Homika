@@ -43,6 +43,9 @@ data class MoneyUiState(
     val revenueSen: Long = 0L,
     val expensesSen: Long = 0L,
     val netIncomeSen: Long = 0L,
+    val yearToDateRevenueSen: Long = 0L,
+    val yearToDateExpensesSen: Long = 0L,
+    val yearToDateNetIncomeSen: Long = 0L,
     val breakdown: List<PropertyMoneySummary> = emptyList(),
     val expenses: List<ExpenseEntity> = emptyList(),
 )
@@ -51,6 +54,19 @@ private data class MonthRange(
     val month: YearMonth,
     val startEpochDay: Long,
     val endEpochDayExclusive: Long,
+)
+
+private data class YearToDateMoney(
+    val revenueSen: Long,
+    val expensesSen: Long,
+) {
+    val netIncomeSen: Long
+        get() = MoneyRules.netIncomeSen(revenueSen, expensesSen)
+}
+
+private data class MoneySupplement(
+    val breakdown: List<PropertyMoneySummary>,
+    val yearToDate: YearToDateMoney,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -66,6 +82,14 @@ class MoneyViewModel(
         MonthRange(
             month = value,
             startEpochDay = value.atDay(1).toEpochDay(),
+            endEpochDayExclusive = value.plusMonths(1).atDay(1).toEpochDay(),
+        )
+    }
+
+    private val yearToDateRange: Flow<MonthRange> = month.map { value ->
+        MonthRange(
+            month = value,
+            startEpochDay = YearMonth.of(value.year, 1).atDay(1).toEpochDay(),
             endEpochDayExclusive = value.plusMonths(1).atDay(1).toEpochDay(),
         )
     }
@@ -86,6 +110,30 @@ class MoneyViewModel(
             endEpochDayExclusive = it.endEpochDayExclusive,
         )
     }
+
+    private val yearToDateRevenue: Flow<Long> =
+        combine(yearToDateRange, bookings) { currentRange, bookingList ->
+            BookingRevenueRules.revenueInRangeSen(
+                bookings = bookingList,
+                startEpochDay = currentRange.startEpochDay,
+                endEpochDayExclusive = currentRange.endEpochDayExclusive,
+            )
+        }
+
+    private val yearToDateExpenses: Flow<Long> = yearToDateRange.flatMapLatest {
+        expenseRepository.observeTotalInRangeSen(
+            startEpochDay = it.startEpochDay,
+            endEpochDayExclusive = it.endEpochDayExclusive,
+        )
+    }
+
+    private val yearToDateMoney: Flow<YearToDateMoney> =
+        combine(yearToDateRevenue, yearToDateExpenses) { revenueSen, expenseSen ->
+            YearToDateMoney(
+                revenueSen = revenueSen,
+                expensesSen = expenseSen,
+            )
+        }
 
     private val expenseList: Flow<List<ExpenseEntity>> = range.flatMapLatest {
         expenseRepository.observeInRange(
@@ -128,14 +176,22 @@ class MoneyViewModel(
             expensesTotal,
             expenseList,
             combine(
-                properties,
-                revenueByProperty,
-                expensesByProperty,
-            ) { propertyList, revenueRows, expenseRows ->
-                buildBreakdown(
-                    properties = propertyList,
-                    revenueRows = revenueRows,
-                    expenseRows = expenseRows,
+                combine(
+                    properties,
+                    revenueByProperty,
+                    expensesByProperty,
+                ) { propertyList, revenueRows, expenseRows ->
+                    buildBreakdown(
+                        properties = propertyList,
+                        revenueRows = revenueRows,
+                        expenseRows = expenseRows,
+                    )
+                },
+                yearToDateMoney,
+            ) { propertyBreakdown, yearToDate ->
+                MoneySupplement(
+                    breakdown = propertyBreakdown,
+                    yearToDate = yearToDate,
                 )
             },
         ) {
@@ -143,14 +199,17 @@ class MoneyViewModel(
             revenueSen,
             expenseSen,
             currentExpenses,
-            propertyBreakdown,
+            supplement,
         ->
             MoneyUiState(
                 month = currentMonth,
                 revenueSen = revenueSen,
                 expensesSen = expenseSen,
                 netIncomeSen = MoneyRules.netIncomeSen(revenueSen, expenseSen),
-                breakdown = propertyBreakdown,
+                yearToDateRevenueSen = supplement.yearToDate.revenueSen,
+                yearToDateExpensesSen = supplement.yearToDate.expensesSen,
+                yearToDateNetIncomeSen = supplement.yearToDate.netIncomeSen,
+                breakdown = supplement.breakdown,
                 expenses = currentExpenses,
             )
         }.stateIn(

@@ -352,3 +352,31 @@ Next test after deploying Patch 13C.2:
 5. Confirm QR and Admin Dashboard links still work.
 
 No D1 migration is required for Patch 13C.2.
+
+## 16. Patch 14A - Year-to-Date Money Summary
+
+Goal:
+
+Expose the owner's running yearly financial position directly on the Money screen without making the main screen chart-heavy.
+
+Behavior:
+
+- Money keeps the existing selected-month summary unchanged.
+- A new compact `{year} so far` card appears directly below Cash movement.
+- The card shows:
+  - Revenue from January through the selected month.
+  - Expenses from January through the selected month.
+  - Net income = Revenue - Expenses.
+- The period label follows the selected month, for example `January - September 2026`.
+- Moving the Money month backward/forward recalculates YTD for that selected year/month. This also makes historical year review intuitive.
+- Revenue uses the existing `BookingRevenueRules` and therefore remains consistent with the rest of Homika's Money/Reports calculations.
+- Expenses use the existing `ExpenseRepository.observeTotalInRangeSen` range query.
+- Existing Reports already has `This month`, `3 months`, `6 months`, `YTD`, and `Custom` filters, so no separate duplicate yearly report engine is added.
+- No database/schema migration.
+- No Worker/Store/licensing/cloud-sync/updater changes.
+
+Canonical product status after 14A:
+
+- Production acceptance flow for Trial -> QR payment -> Telegram -> Admin Approve -> paid licence has been tested successfully by the user.
+- Core Homika Pro v1.0 functionality is considered complete.
+- Patch 14A is a final Money UX enhancement before locking v1.0 and moving future work to maintenance/bug fixes or v1.1 features.

@@ -72,6 +72,16 @@ fun MoneyScreen(
     val monthTitle = state.month.format(DateTimeFormatter.ofPattern("MMMM yyyy", locale)).replaceFirstChar {
         if (it.isLowerCase()) it.titlecase(locale) else it.toString()
     }
+    val yearToDateStart = state.month.withMonth(1)
+    val yearToDatePeriod = buildString {
+        append(
+            yearToDateStart.format(DateTimeFormatter.ofPattern("MMMM", locale)).replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase(locale) else it.toString()
+            },
+        )
+        append(" - ")
+        append(monthTitle)
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -142,6 +152,54 @@ fun MoneyScreen(
                             compact = true,
                         )
                     }
+                }
+            }
+        }
+        item {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline,
+                ),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "${state.month.year} so far",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = yearToDatePeriod,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    MoneyLine(
+                        label = stringResource(R.string.revenue),
+                        value = formatSenAsRinggit(state.yearToDateRevenueSen, locale),
+                    )
+                    MoneyLine(
+                        label = stringResource(R.string.expenses),
+                        value = formatSenAsRinggit(state.yearToDateExpensesSen, locale),
+                    )
+                    MoneyLine(
+                        label = stringResource(R.string.net_income),
+                        value = formatSenAsRinggit(state.yearToDateNetIncomeSen, locale),
+                        emphasized = true,
+                    )
                 }
             }
         }
