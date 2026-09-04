@@ -377,6 +377,50 @@ Behavior:
 
 Canonical product status after 14A:
 
-- Production acceptance flow for Trial -> QR payment -> Telegram -> Admin Approve -> paid licence has been tested successfully by the user.
-- Core Homika Pro v1.0 functionality is considered complete.
-- Patch 14A is a final Money UX enhancement before locking v1.0 and moving future work to maintenance/bug fixes or v1.1 features.
+- Most production acceptance flow is green, but manual Admin Approve exposed one backend FK bug during paid checkout completion on 2026-09-04.
+- The failure was `D1_ERROR: FOREIGN KEY constraint failed` inside `completePaidCheckout()` while reviewing a manual QR payment.
+- Patch 13C.3 fixes this before v1.0 is finally locked.
+
+
+## 17. Patch 13C.3 - Payment Completion Foreign-Key Fix
+
+Observed production failure:
+
+- Admin Dashboard authentication works.
+- Telegram payment submission notification works.
+- Manual payment submission reaches the Admin Dashboard.
+- Pressing Approve reached Worker `/v1/admin/payments/review` but Worker threw:
+  `D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT_FOREIGNKEY`.
+- Stack pointed into `completePaidCheckout()`.
+
+Root cause fixed:
+
+- `checkout_intents.resulting_license_id` is a foreign key to `licenses(id)`.
+- The previous fresh-purchase completion path could persist a newly generated `resulting_license_id` into `checkout_intents` before the corresponding `licenses` row existed.
+- D1 correctly rejected that write.
+
+Patch 13C.3 behavior:
+
+- Fresh purchases persist only `resulting_license_key` before licence creation.
+- The paid licence row is created first.
+- Only after the licence exists is `checkout_intents.resulting_license_id` written.
+- Retry recovery uses the persisted resulting licence key to find an already-created licence, preventing duplicate licences after partial failures.
+- Renewal/Trial-upgrade validates the target licence before update.
+- A legacy orphan `customer_id` is repaired from the checkout email rather than causing another FK failure.
+- The payment row is inserted only after the target licence is re-validated as existing.
+- Existing provider payment rows are checked against licence, amount and currency for idempotency/conflict protection.
+- Admin review returns stable payment-completion error codes while full error details remain in Worker logs.
+- Worker health version is 15 and exposes `payment_completion_fk_fix: true`.
+- No D1 migration is required.
+- Android, Money 14A, Cloud Sync, Backup, updater and signing are untouched.
+
+Required production retest after green deploy:
+
+1. Open the existing `submitted` payment that previously failed.
+2. Press Approve again. Do not create a new payment first.
+3. Confirm Admin status becomes approved/completed.
+4. For an upgrade/renewal, return to Homika and Verify Now. Confirm the same licence is retained and expiry/plan updates correctly.
+5. For a fresh purchase, confirm exactly one paid licence is produced.
+6. Confirm `/health` reports Worker version 15 and `payment_completion_fk_fix: true`.
+
+Only after this retest passes should Homika Pro v1.0 be considered fully production-locked.

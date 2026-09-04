@@ -16,7 +16,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 14,
+          version: 15,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -36,6 +36,7 @@ export default {
           manual_payment_proof: true,
           admin_payment_approval: true,
           admin_payment_notification: Boolean(cleanString(env.HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN, 300) && cleanString(env.HOMIKA_ADMIN_TELEGRAM_CHAT_ID, 120)),
+          payment_completion_fk_fix: true,
           same_license_renewal: true,
           exact_plan_key_in_token: true,
           self_service_trial: true,
@@ -704,7 +705,19 @@ async function reviewManualPayment(request, env) {
   if (!["pending", "processing"].includes(intent.status)) return json({ ok: false, error: "checkout_not_payable" }, 409);
 
   const providerPaymentId = `manual_qr:${submission.id}`;
-  const completed = await completePaidCheckout(env, intent, "manual_qr", providerPaymentId);
+  let completed;
+  try {
+    completed = await completePaidCheckout(env, intent, "manual_qr", providerPaymentId);
+  } catch (err) {
+    console.error("manual_payment_completion_failed", {
+      submission_id: submission.id,
+      checkout_id: submission.checkout_id,
+      action: intent.action,
+      license_id: intent.license_id || null,
+      error: String(err?.message || err),
+    });
+    return json({ ok: false, error: paymentCompletionErrorCode(err) }, 500);
+  }
   await env.DB.prepare(
     `UPDATE manual_payment_submissions
         SET status = 'approved', admin_note = ?1, reviewed_at = CURRENT_TIMESTAMP,
@@ -712,6 +725,28 @@ async function reviewManualPayment(request, env) {
       WHERE id = ?2`
   ).bind(adminNote || null, id).run();
   return json({ ok: true, checkout: await checkoutIntentJson(env, completed) });
+}
+
+function paymentCompletionErrorCode(err) {
+  const message = String(err?.message || err || "").toLowerCase();
+  const known = [
+    "checkout_not_found",
+    "plan_not_available",
+    "license_not_found",
+    "license_not_found_after_update",
+    "resulting_license_not_created",
+    "payment_license_not_found",
+    "provider_payment_conflict",
+    "invalid_email",
+    "invalid_plan_duration",
+    "unsupported_plan_duration",
+  ];
+  for (const code of known) {
+    if (message.includes(code)) return code;
+  }
+  if (message.includes("foreign key")) return "payment_completion_foreign_key_error";
+  if (message.includes("d1_error") || message.includes("sqlite")) return "payment_completion_database_error";
+  return "payment_completion_failed";
 }
 
 async function getManualPaymentSubmissionForCheckout(env, checkoutId) {
@@ -870,13 +905,14 @@ async function completePaidCheckout(env, originalIntent, provider, providerPayme
   const plan = await getSalePlan(env, intent.plan_key);
   if (!plan) throw new Error("plan_not_available");
 
+  let renewalLicense = null;
   let targetExpiresAt = intent.target_expires_at;
   if (!targetExpiresAt) {
     let baseMillis = Date.now();
     if (intent.action === "renew") {
-      const license = await getLicenseById(env, intent.license_id);
-      if (!license) throw new Error("license_not_found");
-      const currentExpiry = parseSqliteTimestamp(license.expires_at);
+      renewalLicense = await getLicenseById(env, intent.license_id);
+      if (!renewalLicense) throw new Error("license_not_found");
+      const currentExpiry = parseSqliteTimestamp(renewalLicense.expires_at);
       if (currentExpiry && currentExpiry.getTime() > baseMillis) baseMillis = currentExpiry.getTime();
     }
     targetExpiresAt = formatSqliteTimestamp(addPlanDuration(baseMillis, plan));
@@ -889,21 +925,35 @@ async function completePaidCheckout(env, originalIntent, provider, providerPayme
     intent = await getCheckoutIntent(env, intent.public_token);
   }
 
-  let license;
+  let license = null;
   if (intent.action === "buy") {
-    let resultLicenseId = intent.resulting_license_id;
-    let resultLicenseKey = intent.resulting_license_key;
-    if (!resultLicenseId || !resultLicenseKey) {
-      resultLicenseId = resultLicenseId || crypto.randomUUID();
-      resultLicenseKey = resultLicenseKey || generatePaidLicenseKey();
+    // IMPORTANT: checkout_intents.resulting_license_id has a foreign key to
+    // licenses(id). Never persist a new result ID before the license row exists.
+    // Persist only the generated key first, so retries can recover a partially
+    // completed purchase without creating duplicate licenses.
+    let resultLicenseId = cleanString(intent.resulting_license_id, 80) || null;
+    let resultLicenseKey = cleanString(intent.resulting_license_key, 120) || null;
+
+    if (resultLicenseId) {
+      license = await getLicenseById(env, resultLicenseId);
+    }
+    if (!license && resultLicenseKey) {
+      license = await getLicenseByKey(env, resultLicenseKey);
+      if (license) resultLicenseId = license.id;
+    }
+
+    if (!resultLicenseKey) {
+      resultLicenseKey = generatePaidLicenseKey();
       await env.DB.prepare(
-        `UPDATE checkout_intents SET resulting_license_id = ?1, resulting_license_key = ?2,
-                updated_at = CURRENT_TIMESTAMP WHERE id = ?3`
-      ).bind(resultLicenseId, resultLicenseKey, intent.id).run();
+        `UPDATE checkout_intents
+            SET resulting_license_key = ?1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?2`
+      ).bind(resultLicenseKey, intent.id).run();
       intent = await getCheckoutIntent(env, intent.public_token);
     }
-    license = await getLicenseById(env, resultLicenseId);
+
     if (!license) {
+      resultLicenseId = resultLicenseId || crypto.randomUUID();
       const customerId = await findOrCreateCustomerByEmail(env, intent.customer_email);
       await env.DB.prepare(
         `INSERT INTO licenses (id, license_key, product_id, customer_id, status,
@@ -913,21 +963,54 @@ async function completePaidCheckout(env, originalIntent, provider, providerPayme
         Number(plan.max_devices || 3), paidPlanType(plan), plan.plan_key).run();
       license = await getLicenseById(env, resultLicenseId);
     }
-  } else {
-    license = await getLicenseById(env, intent.license_id);
-    if (!license) throw new Error("license_not_found");
-    let customerId = license.customer_id || null;
-    if (!customerId && intent.customer_email) customerId = await findOrCreateCustomerByEmail(env, intent.customer_email);
+
+    if (!license) throw new Error("resulting_license_not_created");
+
+    // Safe only after the referenced license exists.
     await env.DB.prepare(
-      `UPDATE licenses SET customer_id = COALESCE(customer_id, ?1), status = 'active',
+      `UPDATE checkout_intents
+          SET resulting_license_id = ?1,
+              resulting_license_key = COALESCE(resulting_license_key, ?2),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?3`
+    ).bind(license.id, license.license_key, intent.id).run();
+    intent = await getCheckoutIntent(env, intent.public_token);
+  } else {
+    license = renewalLicense || await getLicenseById(env, intent.license_id);
+    if (!license) throw new Error("license_not_found");
+
+    // Keep a valid existing customer relation. If legacy data contains an
+    // orphan customer_id, repair it from the checkout email rather than
+    // triggering another foreign-key failure when the licence row is updated.
+    let customerId = license.customer_id || null;
+    if (customerId) {
+      const customer = await env.DB.prepare(
+        `SELECT id FROM customers WHERE id = ?1 LIMIT 1`
+      ).bind(customerId).first();
+      if (!customer?.id) customerId = null;
+    }
+    if (!customerId && intent.customer_email) {
+      customerId = await findOrCreateCustomerByEmail(env, intent.customer_email);
+    }
+
+    await env.DB.prepare(
+      `UPDATE licenses SET customer_id = ?1, status = 'active',
               expires_at = ?2, max_devices = ?3, plan_type = ?4, plan_key = ?5,
               updated_at = CURRENT_TIMESTAMP WHERE id = ?6`
     ).bind(customerId, targetExpiresAt, Number(plan.max_devices || 3), paidPlanType(plan), plan.plan_key, license.id).run();
     license = await getLicenseById(env, license.id);
+    if (!license) throw new Error("license_not_found_after_update");
   }
 
+  // Confirm the payment foreign-key target still exists immediately before
+  // writing payments. This gives a deterministic error instead of a raw D1 FK.
+  const persistedLicense = await getLicenseById(env, license.id);
+  if (!persistedLicense) throw new Error("payment_license_not_found");
+  license = persistedLicense;
+
   const existingPayment = await env.DB.prepare(
-    `SELECT id, amount_cents, currency FROM payments WHERE provider_payment_id = ?1 LIMIT 1`
+    `SELECT id, license_id, provider, amount_cents, currency
+       FROM payments WHERE provider_payment_id = ?1 LIMIT 1`
   ).bind(providerPaymentId).first();
   if (!existingPayment) {
     await env.DB.prepare(
@@ -936,9 +1019,12 @@ async function completePaidCheckout(env, originalIntent, provider, providerPayme
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'paid', ?7, CURRENT_TIMESTAMP)`
     ).bind(crypto.randomUUID(), license.id, provider, providerPaymentId,
       Number(intent.amount_cents), cleanString(intent.currency, 8) || "MYR", intent.plan_key).run();
-  } else if (Number(existingPayment.amount_cents) !== Number(intent.amount_cents) ||
-             String(existingPayment.currency).toUpperCase() !== String(intent.currency).toUpperCase()) {
-    throw new Error("provider_payment_conflict");
+  } else {
+    if (String(existingPayment.license_id || "") !== String(license.id) ||
+        Number(existingPayment.amount_cents) !== Number(intent.amount_cents) ||
+        String(existingPayment.currency).toUpperCase() !== String(intent.currency).toUpperCase()) {
+      throw new Error("provider_payment_conflict");
+    }
   }
 
   await env.DB.prepare(
