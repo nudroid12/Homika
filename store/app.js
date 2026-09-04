@@ -48,6 +48,11 @@ function money(c){return `RM${(Number(c||0)/100).toFixed(0)}`}
 function saving(p){return Math.max(0,Number(p.compare_at_price_cents||0)-Number(p.price_cents||0))}
 function labelFor(p){return labels[p.plan_key]||p.name||p.plan_key}
 function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+async function copyValue(value,button,doneLabel){
+  try{await navigator.clipboard.writeText(value);const before=button.textContent;button.textContent=doneLabel;setTimeout(()=>{button.textContent=before},1600)}
+  catch(_){window.prompt('Salin:',value)}
+}
+
 function checkoutStatusUrl(){
   const url=new URL(location.href);
   if(state.checkoutToken)url.searchParams.set('checkout',state.checkoutToken);
@@ -142,7 +147,7 @@ function renderManualPayment(c){
   }
   if(submission.status==='submitted'){
     proofForm.classList.add('hidden');
-    paymentStatus.innerHTML=`<strong>Bayaran diterima ✓</strong><p>Bukti pembayaran sudah dihantar${submission.submitted_at?` pada ${escapeHtml(submission.submitted_at)}`:''}. Menunggu pengesahan manual. Tak perlu buat bayaran kali kedua. Anda boleh tutup halaman ini dan buka semula menggunakan link semakan.</p>`;
+    paymentStatus.innerHTML=`<strong>Bayaran diterima ✓</strong><p>Bukti pembayaran sudah dihantar${submission.submitted_at?` pada ${escapeHtml(submission.submitted_at)}`:''}. Menunggu pengesahan manual. Tak perlu buat bayaran kali kedua. Jika halaman ini dibiarkan terbuka, status akan dikemas kini automatik selepas admin approve. Anda juga boleh tutup halaman ini dan buka semula menggunakan link semakan.</p>`;
     return;
   }
   if(submission.status==='rejected'){
@@ -170,9 +175,16 @@ function renderCheckout(c){
   if(c.status==='completed'){
     checkoutForm.classList.add('hidden');
     paymentPanel.classList.add('hidden');
-    checkoutResult.innerHTML=c.action==='buy'&&c.license_key
-      ?`<strong>Pembayaran disahkan.</strong><p>Kod lesen Homika Pro anda:</p><code>${escapeHtml(c.license_key)}</code><p>Simpan kod ini dan aktifkan dalam aplikasi.</p>`
-      :'<strong>Renewal berjaya.</strong><p>Kod lesen yang sama telah dipanjangkan. Kembali ke Homika dan tekan <b>Semak sekarang</b>.</p>';
+    const statusUrl=checkoutStatusUrl();
+    if(c.action==='buy'&&c.license_key){
+      checkoutResult.innerHTML=`<strong>Bayaran diluluskan ✓</strong><p>Homika Pro anda telah aktif. Ini Licence Key anda:</p><code class="customer-license-key">${escapeHtml(c.license_key)}</code><div class="checkout-result-actions"><button class="button primary" type="button" data-copy-license>Salin Licence Key</button><button class="button secondary" type="button" data-copy-status>Salin link semakan</button></div><p>Simpan Licence Key ini, kemudian buka Homika dan aktifkan lesen. Jika halaman ini ditutup, buka semula link semakan untuk melihat key ini lagi.</p>`;
+      checkoutResult.querySelector('[data-copy-license]')?.addEventListener('click',e=>copyValue(c.license_key,e.currentTarget,'Licence Key disalin ✓'));
+      checkoutResult.querySelector('[data-copy-status]')?.addEventListener('click',e=>copyValue(statusUrl,e.currentTarget,'Link disalin ✓'));
+    }else{
+      checkoutResult.innerHTML=`<strong>Bayaran diluluskan ✓</strong><p>Lesen Homika anda telah dikemas kini. <b>Tiada Licence Key baharu</b> kerana upgrade/renewal mengekalkan lesen yang sama.</p><p>Kembali ke Homika dan tekan <b>Verify Now / Semak sekarang</b> untuk mendapatkan tempoh dan pelan terkini.</p><div class="checkout-result-actions"><button class="button secondary" type="button" data-copy-status>Salin link semakan</button></div>`;
+      checkoutResult.querySelector('[data-copy-status]')?.addEventListener('click',e=>copyValue(statusUrl,e.currentTarget,'Link disalin ✓'));
+    }
+    document.title='Bayaran diluluskan · Homika Pro';
     stopPolling();
   }else{
     checkoutResult.innerHTML='<strong>Bayaran melalui QR.</strong><p>Pengesahan dibuat secara manual. Kebiasaannya dalam beberapa jam, tetapi jika admin tidak tersedia pengesahan mungkin dibuat pada hari berikutnya.</p>';
@@ -213,6 +225,7 @@ async function loadCheckoutToken(){
     state.checkout=b.checkout;
     if(b.checkout.status==='completed'||b.checkout.manual_payment){
       dialogTitle.textContent='Homika Pro';dialogCopy.textContent='Status checkout anda.';checkoutForm.classList.add('hidden');dialog.showModal();renderCheckout(b.checkout);
+      if(b.checkout.status!=='completed'&&b.checkout.manual_payment?.status==='submitted')startPolling();
     }else{
       statusEl.textContent=b.checkout.license_hint?`Renewal dipaut kepada lesen ${b.checkout.license_hint}. Pilih pelan di bawah.`:'Sesi renewal aktif. Pilih pelan di bawah.';
       document.querySelector('#pricing').scrollIntoView();

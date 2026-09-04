@@ -424,3 +424,35 @@ Required production retest after green deploy:
 6. Confirm `/health` reports Worker version 15 and `payment_completion_fk_fix: true`.
 
 Only after this retest passes should Homika Pro v1.0 be considered fully production-locked.
+
+## 18. Patch 13C.4 - Approval Completion UX
+
+Reason:
+
+After payment approval became technically successful, the Admin Dashboard immediately refreshed the pending list. This made the approved card disappear with no positive confirmation, and the customer handoff for a newly generated Licence Key was not obvious enough.
+
+Behavior:
+
+- Worker health version is 16 and exposes `approval_completion_ux: true`.
+- No D1 migration.
+- Admin Approve now opens a clear success dialog instead of silently removing the pending card.
+- Fresh purchase approval shows the generated Licence Key to admin, with `Salin Licence Key` and `Salin link customer`.
+- Upgrade/renewal approval explicitly states that the existing licence is retained and the customer should use Verify Now.
+- Reject also gets a visible completion dialog and customer status-link copy action.
+- Approved/Rejected history remains available through the existing Admin filter rather than disappearing permanently.
+- Approved fresh-purchase rows expose their Licence Key only through the authenticated Admin API so admin can recover/copy it when needed.
+- Customer checkout status remains the primary self-service delivery channel. If the customer leaves the page open, the 8-second polling detects approval automatically. If the customer closes it, the same checkout/status URL can be reopened later; reopened pending status pages now resume polling automatically.
+- Fresh purchase completion page clearly displays the Licence Key and provides one-tap copy.
+- Upgrade/renewal completion page clearly says no new key is created and instructs the customer to return to Homika and Verify Now.
+- Customer completion page also provides a copy-status-link action for recovery.
+- No email delivery is claimed or added because no transactional email provider is configured.
+- Android, Money 14A, Cloud Sync, Backup, updater and signing remain untouched.
+
+Production acceptance test for 13C.4:
+
+1. Submit a QR proof for a fresh purchase.
+2. Admin Approve. Confirm success dialog appears and includes the Licence Key plus customer status link.
+3. Confirm customer page changes from Pending to Approved automatically and shows the same Licence Key.
+4. Close and reopen the customer status link. Confirm the key is still available.
+5. Repeat with Trial upgrade/renewal. Confirm no new key is created and customer is instructed to Verify Now.
+6. Check Admin filter `Diluluskan` and confirm approved history remains visible.

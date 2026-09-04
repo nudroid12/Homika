@@ -16,7 +16,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 15,
+          version: 16,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -37,6 +37,7 @@ export default {
           admin_payment_approval: true,
           admin_payment_notification: Boolean(cleanString(env.HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN, 300) && cleanString(env.HOMIKA_ADMIN_TELEGRAM_CHAT_ID, 120)),
           payment_completion_fk_fix: true,
+          approval_completion_ux: true,
           same_license_renewal: true,
           exact_plan_key_in_token: true,
           self_service_trial: true,
@@ -638,6 +639,9 @@ async function listManualPayments(request, env) {
       admin_note: row.admin_note || null,
       submitted_at: row.submitted_at,
       reviewed_at: row.reviewed_at || null,
+      license_key: row.action === "buy" && row.checkout_status === "completed"
+        ? (row.resulting_license_key || null)
+        : null,
     });
   }
   return json({ ok: true, status, items });

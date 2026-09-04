@@ -22,6 +22,24 @@
     <div id="payment-list" class="admin-list"></div>
   </section>
 </main>
+
+<dialog id="review-result-dialog" class="admin-result-dialog">
+  <div class="admin-result-inner">
+    <div id="review-result-icon" class="admin-result-icon">✓</div>
+    <h3 id="review-result-title">Bayaran diluluskan</h3>
+    <p id="review-result-copy" class="admin-result-copy"></p>
+    <div id="review-result-license-wrap" class="admin-result-license hidden">
+      <span>Licence Key</span>
+      <code id="review-result-license"></code>
+    </div>
+    <div class="admin-result-actions">
+      <button id="review-result-copy-license" class="button secondary hidden" type="button">Salin Licence Key</button>
+      <button id="review-result-copy-status" class="button secondary hidden" type="button">Salin link customer</button>
+      <button id="review-result-close" class="button primary" type="button">Selesai</button>
+    </div>
+  </div>
+</dialog>
+
 <script src="./admin.js" defer></script>
 </body>
 </html>

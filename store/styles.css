@@ -112,3 +112,6 @@ input[type="file"] { padding: 11px 12px; min-height: 48px; }
 .same-phone-tip strong { color: var(--ink); }
 .status-link-button { width: 100%; margin-top: 8px; border: 0; background: transparent; color: var(--primary); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; text-decoration: underline; }
 @media (max-width: 420px) { .qr-actions { grid-template-columns: 1fr; } }
+.checkout-result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 10px; }
+.customer-license-key { user-select: all; }
+@media (max-width: 460px) { .checkout-result-actions { grid-template-columns: 1fr; } }
