@@ -743,3 +743,37 @@ Required production sequence:
 10. Test a rejected order and confirm the Android screen shows rejection state/reason and requests a new order.
 
 Do not remove Licence Key compatibility. It is the recovery/legacy path if the customer forgets the Purchase PIN or for older licences created before 13C.8.
+
+## Patch 13C.9 - Worker configuration persistence / deployment hardening
+
+Problem observed in production:
+- Dashboard Worker configuration could appear missing after source-driven Worker deployments.
+- `HOMIKA_EMAIL_FROM` and other dashboard variables are vulnerable to config-driven overwrite when Wrangler treats repository configuration as source of truth.
+- A missing critical secret such as `HOMIKA_PURCHASE_PIN_PEPPER` can leave a newly deployed Worker running but with Purchase PIN disabled.
+
+Hardening:
+- Worker health version: 21.
+- `backend/package.json` now prepares a hardened deployment config on install and before `npm run deploy`.
+- `backend/scripts/prepare-worker-deploy-config.mjs` reads the existing production `wrangler.jsonc` and generates a temporary config. It does NOT replace or hard-code the production D1 database ID or R2 binding.
+- Generated config sets `keep_vars=true`, preserving dashboard environment variables during Wrangler deployment.
+- Generated config declares these critical secrets as required so Wrangler blocks a deploy if one is missing:
+  - `LICENSE_SIGNING_PRIVATE_KEY`
+  - `CLOUD_MASTER_KEY`
+  - `HOMIKA_ADMIN_SECRET`
+  - `HOMIKA_ADMIN_TELEGRAM_BOT_TOKEN`
+  - `HOMIKA_ADMIN_TELEGRAM_CHAT_ID`
+  - `BREVO_API_KEY`
+  - `HOMIKA_PURCHASE_PIN_PEPPER`
+- Generated `.wrangler/deploy/config.json` redirects normal Wrangler deploys to the hardened config.
+- `npm run deploy` also passes `--keep-vars` explicitly.
+- Generated deployment files and local `.env` / `.dev.vars` files are git-ignored.
+- No secret values are committed.
+- No D1 migration.
+- Android, Store checkout UI, licence logic, Cloud Sync/Backup and Money 14A are unchanged.
+
+One-time recovery after installing 13C.9:
+- Re-add any currently missing Worker secrets/variables once.
+- `HOMIKA_PURCHASE_PIN_PEPPER` must be a Secret.
+- `BREVO_API_KEY` must be a Secret.
+- `HOMIKA_EMAIL_FROM` may remain a dashboard variable; `keep_vars=true` is intended to preserve it.
+- If a critical required secret is absent, future Worker deploys should fail instead of silently publishing a partially configured production Worker.

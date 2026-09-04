@@ -16,7 +16,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 20,
+          version: 21,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -28,6 +28,9 @@ export default {
           commercial_licensing_ux: true,
           purchase_redirect: true,
           persistent_store_url_default: true,
+          worker_deploy_config_hardening: true,
+          worker_dashboard_vars_preserved: true,
+          worker_required_secret_guard: true,
           store_catalog: true,
           checkout_intents: true,
           authenticated_renewal_checkout: true,

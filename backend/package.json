@@ -2,10 +2,12 @@
   "name": "homika-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Homika Pro licence and encrypted cloud backup backend",
+  "description": "Homika Pro licence, payment and encrypted cloud backend",
   "scripts": {
-    "check": "node --check src/index.js",
-    "deploy": "wrangler deploy",
+    "prepare:worker-config": "node scripts/prepare-worker-deploy-config.mjs",
+    "postinstall": "node scripts/prepare-worker-deploy-config.mjs",
+    "check": "npm run prepare:worker-config && node --check src/index.js && node --check scripts/prepare-worker-deploy-config.mjs",
+    "deploy": "npm run prepare:worker-config && wrangler deploy --keep-vars",
     "dev": "wrangler dev"
   },
   "devDependencies": {
