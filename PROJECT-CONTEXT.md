@@ -525,3 +525,52 @@ Production acceptance for 13C.5:
 6. Reject test: attempt Reject without reason and confirm it is blocked. Enter a reason, Reject, and confirm customer receives the exact reason plus instructions to make a new order with the correct receipt.
 7. From Approved/Rejected history test `Hantar semula email`.
 
+
+## 20. Patch 13C.6 - Brevo Free Customer Email Delivery
+
+Reason:
+
+13C.5 implemented customer decision emails through Resend, but production delivery to arbitrary customers would require a verified sender domain. The owner wants a no-cost launch path and has created a Brevo Free account, generated an API key, and verified a sender email address.
+
+Current email provider:
+
+- Worker v18 uses Brevo Transactional Email API server-to-server.
+- Endpoint: `POST https://api.brevo.com/v3/smtp/email`.
+- Authentication is sent in the `api-key` request header.
+- No API credential is exposed to Store JavaScript or Android.
+- Sender must match the sender address already verified in Brevo.
+
+Required Cloudflare Worker configuration:
+
+- `BREVO_API_KEY` as a Cloudflare Secret.
+- `HOMIKA_EMAIL_FROM` as a Variable or Secret containing the exact Brevo-verified sender email.
+- `HOMIKA_EMAIL_FROM_NAME` is optional; defaults to `Homika`.
+- `RESEND_API_KEY` is no longer used by Worker v18 and may be removed after successful Brevo acceptance testing.
+
+Health:
+
+- Worker version: 18.
+- `customer_email_delivery: true`.
+- `customer_email_provider: "brevo"`.
+- `customer_email_configured` is true only when both `BREVO_API_KEY` and a valid `HOMIKA_EMAIL_FROM` are present.
+
+Payment decision behavior remains unchanged from 13C.5:
+
+- Fresh purchase Approve sends the generated Licence Key to the checkout email.
+- Trial upgrade / renewal Approve sends confirmation that the existing licence has been updated and tells the customer to use Verify Now.
+- Reject requires an admin reason and emails the exact rejection reason plus instructions to create a new order and upload the correct receipt.
+- Email is a notification/delivery channel only. Email address alone never activates a licence and never grants Homika Cloud access.
+- Payment/licence completion is not rolled back if email delivery fails; Admin gets a warning and can use `Hantar semula email` later.
+
+No D1 migration is required for 13C.6.
+No Android changes. Money 14A, Cloud Sync, Backup, updater, signing and licence core remain untouched.
+
+Production acceptance test for 13C.6:
+
+1. Deploy patch and confirm `/health` reports version 18 and provider `brevo`.
+2. Add `BREVO_API_KEY` and `HOMIKA_EMAIL_FROM` in Worker Variables and Secrets.
+3. Confirm `/health` reports `customer_email_configured: true`.
+4. Fresh purchase: Approve an order and confirm the customer receives the Licence Key email.
+5. Trial upgrade / renewal: Approve and confirm the email says to use the existing licence and Verify Now.
+6. Reject with a reason and confirm the customer receives the exact reason plus instructions for a new order.
+7. Test `Hantar semula email` from Approved/Rejected history.

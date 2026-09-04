@@ -16,7 +16,7 @@ export default {
         return json({
           ok: true,
           service: "app-license-api",
-          version: 17,
+          version: 18,
           signed_tokens: true,
           license_plans: true,
           cloud_backup: true,
@@ -39,8 +39,8 @@ export default {
           payment_completion_fk_fix: true,
           approval_completion_ux: true,
           customer_email_delivery: true,
-          customer_email_provider: "resend",
-          customer_email_configured: Boolean(cleanString(env.RESEND_API_KEY, 300) && cleanString(env.HOMIKA_EMAIL_FROM, 320)),
+          customer_email_provider: "brevo",
+          customer_email_configured: Boolean(cleanString(env.BREVO_API_KEY, 400) && parseBrevoSender(env.HOMIKA_EMAIL_FROM, env.HOMIKA_EMAIL_FROM_NAME)),
           rejection_reason_required: true,
           same_license_renewal: true,
           exact_plan_key_in_token: true,
@@ -598,45 +598,77 @@ function rejectionEmailContent(env, checkout, reason) {
   };
 }
 
+function parseBrevoSender(value, nameValue = "") {
+  const raw = cleanString(value, 320);
+  if (!raw) return null;
+
+  let email = raw;
+  let embeddedName = "";
+  const match = raw.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+  if (match) {
+    embeddedName = cleanString(match[1], 80).replace(/^['"]|['"]$/g, "");
+    email = match[2];
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+  const configuredName = cleanString(nameValue, 80);
+  return {
+    email: normalizedEmail,
+    name: configuredName || embeddedName || "Homika",
+  };
+}
+
 async function sendCustomerPaymentDecisionEmail(env, { submission, checkout, decision, rejectionReason = "", forceResend = false }) {
-  const apiKey = cleanString(env.RESEND_API_KEY, 300);
-  const from = cleanString(env.HOMIKA_EMAIL_FROM, 320);
+  const apiKey = cleanString(env.BREVO_API_KEY, 400);
+  const sender = parseBrevoSender(env.HOMIKA_EMAIL_FROM, env.HOMIKA_EMAIL_FROM_NAME);
   const to = normalizeEmail(checkout?.customer_email);
-  if (!apiKey || !from) return { configured: false, ok: false, error: "customer_email_not_configured" };
+  if (!apiKey || !sender) return { configured: false, ok: false, error: "customer_email_not_configured" };
   if (!to) return { configured: true, ok: false, error: "customer_email_missing" };
 
   const content = decision === "reject"
     ? rejectionEmailContent(env, checkout, rejectionReason)
     : approvalEmailContent(checkout);
   const submissionId = cleanString(submission?.id, 80) || crypto.randomUUID();
-  const keySuffix = forceResend ? crypto.randomUUID() : decision;
+  const deliveryRef = `homika-${submissionId}-${forceResend ? crypto.randomUUID() : decision}`.slice(0, 180);
+
   try {
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        "authorization": `Bearer ${apiKey}`,
+        "accept": "application/json",
+        "api-key": apiKey,
         "content-type": "application/json",
-        "idempotency-key": `homika-${submissionId}-${keySuffix}`.slice(0, 240),
       },
       body: JSON.stringify({
-        from,
-        to: [to],
+        sender,
+        to: [{ email: to }],
         subject: content.subject,
-        html: content.html,
-        text: content.text,
+        htmlContent: content.html,
+        headers: {
+          "X-Mailin-custom": `homika_payment_ref:${deliveryRef}`,
+        },
       }),
     });
+
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error("customer_payment_email_failed", {
         submission_id: submissionId,
         decision,
         status: response.status,
-        provider_error: cleanString(payload?.message || payload?.name || "", 240),
+        provider_error: cleanString(payload?.message || payload?.code || "", 240),
       });
       return { configured: true, ok: false, error: `email_provider_http_${response.status}` };
     }
-    return { configured: true, ok: true, provider: "resend", id: cleanString(payload?.id, 120) || null, to };
+
+    return {
+      configured: true,
+      ok: true,
+      provider: "brevo",
+      id: cleanString(payload?.messageId, 180) || null,
+      to,
+    };
   } catch (err) {
     console.error("customer_payment_email_failed", {
       submission_id: submissionId,
