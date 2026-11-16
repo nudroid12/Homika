@@ -1,42 +1,40 @@
-# HOMIKA
+<p align="center">
+  <img src="app/src/main/res/drawable/homika_login_logo.png" width="80" alt="Homika logo">
+</p>
 
-HOMIQ is a private, owner-only homestay management app.
+# Homika
 
-It is designed for homestay owners who receive bookings manually through WhatsApp, Airbnb, Booking.com, Facebook, TikTok, repeat guests, walk-ins, or other channels, then need one simple place to record bookings, payments, deposits, expenses, occupancy, and profit.
+Homika is a local-first Android app for homestay and short-stay property owners. Keep bookings from WhatsApp, booking platforms and direct enquiries in one calendar, and track the money for each stay.
 
-## Product principles
+[Download the latest APK](https://github.com/nudroid12/Homika/releases/latest)
 
-- Owner only. This is not a guest booking marketplace.
-- Zero recurring operating cost is a core requirement.
-- Local first. Daily use must continue even without internet.
-- Bahasa Melayu and English.
-- Optional account sign-in.
-- Local backup and Google Drive backup.
-- Optional multi-device sync for the same account.
-- Simple enough for one homestay, structured enough for multiple properties.
-- Financial records must separate revenue, outstanding balances, deposits, refunds, and expenses.
+## Free and Pro
 
-## Initial Android stack
+| Free | Pro |
+| --- | --- |
+| Manage properties, bookings, blocked dates and upcoming stays | Sync records across devices |
+| Record payments, deposits and expenses | Back up automatically to Homika Cloud and restore from a cloud backup |
+| Review occupancy, revenue and net income | |
+| Create and restore local backup files | |
 
-- Kotlin
-- Jetpack Compose
-- Material 3
-- Android Gradle Plugin 9.3.2
-- Gradle 9.5.0
-- compileSdk 36
-- targetSdk 36
-- minSdk 26
-- Compose BOM 2026.06.00
-- JDK 17
+Daily work can be done offline without an account. Homika is available in English and Bahasa Melayu.
 
-## Repository source of truth
+## Get started
 
-Read `PROJECT_CONTEXT.md` before making product or architecture changes.
+1. Open the latest release on your Android phone and download the APK under **Assets**.
+2. Install Homika on Android 8.0 or later.
+3. Add your first property, then record a booking or block dates in the calendar.
 
-The complete end-to-end roadmap and flowcharts are in `docs/FLOWCHART.md`.
+Check for newer versions from **More → About → Check for updates**.
 
-## Current stage
+## Development
 
-Phase 0: Foundation.
+The Android app uses Kotlin, Jetpack Compose, Material 3 and Room. Use JDK 17 and Android SDK 36 to build from the repository root.
 
-The initial project only proves that the Android toolchain and bilingual resource structure build successfully. Business features are intentionally added phase by phase.
+```bash
+./gradlew :app:assembleDebug
+```
+
+The [Cloudflare backend](backend/README.md) handles licensing and Homika Cloud. The [store](store/README.md) handles Pro checkout.
+
+Developed by **NudroidLabs**. [Report an issue](https://github.com/nudroid12/Homika/issues).
