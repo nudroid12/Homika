@@ -33,7 +33,6 @@ internal class GitHubReleaseClient(
             val json = JSONObject(payload)
             val tagName = json.optString("tag_name").trim()
             val versionName = VersionComparator.normalize(tagName)
-            val notes = json.optString("body").trim()
             val assets = json.optJSONArray("assets")
                 ?: throw UpdateClientException(UpdateFailureReason.RELEASE_INVALID)
 
@@ -65,7 +64,6 @@ internal class GitHubReleaseClient(
             HomikaRelease(
                 tagName = tagName,
                 versionName = versionName,
-                notes = notes,
                 apkName = selected.name,
                 downloadUrl = selected.url,
                 sizeBytes = selected.size,

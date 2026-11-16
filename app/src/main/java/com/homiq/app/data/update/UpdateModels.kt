@@ -5,7 +5,6 @@ import java.io.File
 data class HomikaRelease(
     val tagName: String,
     val versionName: String,
-    val notes: String,
     val apkName: String,
     val downloadUrl: String,
     val sizeBytes: Long,

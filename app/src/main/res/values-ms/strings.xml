@@ -429,9 +429,10 @@
     <string name="updater_more_label">Homika · v%1$s</string>
     <string name="updater_check_short">Semak update</string>
     <string name="updater_checking_title">Menyemak kemas kini</string>
-    <string name="updater_checking_body">Mencari keluaran Homika terkini di GitHub.</string>
+    <string name="updater_checking_body">Menyemak versi Homika terkini…</string>
     <string name="updater_available_title">Kemas kini tersedia</string>
-    <string name="updater_available_body">Semasa v%1$s · Terkini v%2$s</string>
+    <string name="updater_available_body">Dipasang v%1$s · Tersedia v%2$s</string>
+    <string name="updater_available_detail">Muat turun kemas kini, kemudian sahkan pemasangan apabila diminta oleh Android.</string>
     <string name="updater_download">Muat turun</string>
     <string name="updater_later">Kemudian</string>
     <string name="updater_downloading_title">Memuat turun Homika</string>
@@ -448,8 +449,8 @@
     <string name="updater_current_title">Homika sudah terkini</string>
     <string name="updater_current_body">Anda sudah menggunakan versi terkini, v%1$s.</string>
     <string name="updater_error_title">Kemas kini tidak dapat diteruskan</string>
-    <string name="updater_error_network">Homika tidak dapat menghubungi GitHub. Semak sambungan internet dan cuba lagi.</string>
-    <string name="updater_error_release">Keluaran GitHub terkini tidak mempunyai APK Homika yang sah.</string>
+    <string name="updater_error_network">Tidak dapat menyambung ke perkhidmatan kemas kini. Semak sambungan internet anda dan cuba lagi.</string>
+    <string name="updater_error_release">Kemas kini belum tersedia buat masa ini. Sila cuba lagi kemudian.</string>
     <string name="updater_error_download">Muat turun kemas kini tidak selesai dengan betul. Cuba lagi kemudian.</string>
     <string name="updater_error_apk">APK yang dimuat turun bukan binaan Homika yang sah dan lebih baharu.</string>
     <string name="updater_error_signature">APK yang dimuat turun menggunakan sijil tandatangan yang berbeza, jadi Homika menyekat kemas kini demi keselamatan.</string>

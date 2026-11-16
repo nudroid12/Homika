@@ -36,7 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.homiq.app.R
 import com.homiq.app.data.local.entity.BookingEntity
 import com.homiq.app.ui.components.EmptyStateCard
-import com.homiq.app.ui.components.HomikaBrandMark
+import com.homiq.app.ui.components.HomikaAppIcon
 import com.homiq.app.ui.components.SectionHeader
 import com.homiq.app.ui.util.formatEpochDay
 import com.homiq.app.ui.util.formatPercent
@@ -154,7 +154,7 @@ private fun HomeTopHeader() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        HomikaBrandMark(modifier = Modifier.size(38.dp))
+        HomikaAppIcon(size = 38.dp)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp),

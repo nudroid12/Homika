@@ -1,5 +1,6 @@
 package com.homiq.app.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,14 +18,36 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import com.homiq.app.R
+
+@Composable
+fun HomikaAppIcon(size: Dp) {
+    val context = LocalContext.current
+    val sizePx = with(LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
+    val icon = remember(context, sizePx) {
+        val drawable = context.applicationInfo.loadIcon(context.packageManager)
+        drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
+    }
+
+    Image(
+        bitmap = icon,
+        contentDescription = null,
+        modifier = Modifier.size(size),
+    )
+}
 
 @Composable
 fun HomikaBrandMark(

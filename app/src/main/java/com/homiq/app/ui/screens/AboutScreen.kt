@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -40,7 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.homiq.app.BuildConfig
 import com.homiq.app.R
-import com.homiq.app.ui.components.HomikaBrandMark
+import com.homiq.app.ui.components.HomikaAppIcon
 
 private const val HOMIKA_SUPPORT_URL = "https://github.com/nudroid12/Homika/issues"
 
@@ -71,7 +70,7 @@ fun AboutScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            HomikaBrandMark(modifier = Modifier.size(68.dp))
+            HomikaAppIcon(size = 68.dp)
             Spacer(Modifier.height(8.dp))
             Text(
                 text = stringResource(R.string.app_name),
