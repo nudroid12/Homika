@@ -24,7 +24,7 @@ import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,7 +50,6 @@ import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.homiq.app.HomiqApplication
-import com.homiq.app.BuildConfig
 import com.homiq.app.R
 import com.homiq.app.data.preferences.AppearanceMode
 import com.homiq.app.data.preferences.AppearancePreferences
@@ -68,7 +67,7 @@ fun MoreScreen(
     hasPro: Boolean,
     appLockEnabled: Boolean,
     onSecurityClick: () -> Unit,
-    onCheckUpdates: () -> Unit,
+    onAboutClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -258,45 +257,15 @@ fun MoreScreen(
         }
 
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onCheckUpdates),
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.65f),
-            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)),
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.SystemUpdate,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = stringResource(
-                        R.string.updater_more_label,
-                        BuildConfig.VERSION_NAME,
-                    ),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(R.string.updater_check_short),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                )
-            }
+            CompactSettingRow(
+                icon = Icons.Outlined.Info,
+                title = stringResource(R.string.about_title),
+                onClick = onAboutClick,
+            )
         }
 
         Spacer(Modifier.height(2.dp))

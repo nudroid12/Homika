@@ -460,4 +460,11 @@
     <string name="booking_action_delete">Delete booking</string>
     <string name="booking_delete_title">Delete booking?</string>
     <string name="booking_delete_message">Delete the booking for %1$s? This removes it from bookings and calendar. This action cannot be undone.</string>
+    <string name="press_back_again_to_exit">Press back again to exit</string>
+    <string name="about_title">About</string>
+    <string name="about_installed_version">Version %1$s</string>
+    <string name="about_description">Manage properties, bookings and finances in one place.</string>
+    <string name="about_check_updates">Check for updates</string>
+    <string name="about_support">Support</string>
+    <string name="about_developed_by">Developed by NudroidLabs</string>
 </resources>

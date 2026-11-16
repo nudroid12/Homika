@@ -1,5 +1,6 @@
 package com.homiq.app.ui
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
@@ -7,10 +8,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Add
@@ -30,8 +33,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,7 +40,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,6 +47,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +63,7 @@ import com.homiq.app.data.license.LicenseAccess
 import com.homiq.app.data.license.LicensePlanType
 import com.homiq.app.data.preferences.OnboardingPreferences
 import com.homiq.app.ui.components.HomikaUpdateDialog
+import com.homiq.app.ui.screens.AboutScreen
 import com.homiq.app.ui.screens.AppLockScreen
 import com.homiq.app.ui.screens.BackupScreen
 import com.homiq.app.ui.screens.BlockDateFormScreen
@@ -91,7 +96,8 @@ import com.homiq.app.ui.viewmodel.MoneyViewModel
 import com.homiq.app.ui.viewmodel.PropertyViewModel
 import com.homiq.app.ui.viewmodel.ReportsViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+
+private const val EXIT_BACK_WINDOW_MILLIS = 2_000L
 
 private enum class HomiqDestination(
     @StringRes val labelRes: Int,
@@ -116,6 +122,7 @@ private enum class HomiqRoute {
     REPORTS,
     BACKUP,
     SECURITY,
+    ABOUT,
     LICENSE,
 }
 
@@ -196,10 +203,15 @@ fun HomiqApp() {
     val route = remember(routeName) {
         HomiqRoute.entries.firstOrNull { it.name == routeName } ?: HomiqRoute.MAIN
     }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
     val activity = LocalContext.current as? android.app.Activity
-    var lastBackPressMillis by rememberSaveable { mutableStateOf(0L) }
+    var exitHintStartedAt by remember(route, selectedDestination, showQuickAdd) {
+        mutableStateOf<Long?>(null)
+    }
+    LaunchedEffect(exitHintStartedAt) {
+        val startedAt = exitHintStartedAt ?: return@LaunchedEffect
+        delay((EXIT_BACK_WINDOW_MILLIS - (SystemClock.elapsedRealtime() - startedAt)).coerceAtLeast(0L))
+        exitHintStartedAt = null
+    }
 
     fun navigate(
         newRoute: HomiqRoute,
@@ -238,6 +250,7 @@ fun HomiqApp() {
                 HomiqRoute.REPORTS -> goMain(HomiqDestination.Home)
                 HomiqRoute.BACKUP,
                 HomiqRoute.SECURITY,
+                HomiqRoute.ABOUT,
                 HomiqRoute.PROPERTIES -> goMain(HomiqDestination.More)
                 HomiqRoute.LICENSE -> closeLicense()
                 HomiqRoute.MAIN -> Unit
@@ -245,16 +258,13 @@ fun HomiqApp() {
         } else if (selectedDestination != HomiqDestination.Home) {
             destinationName = HomiqDestination.Home.name
         } else {
-            val now = System.currentTimeMillis()
-            if (now - lastBackPressMillis <= 2000L) {
+            val now = SystemClock.elapsedRealtime()
+            val startedAt = exitHintStartedAt
+            if (startedAt != null && now - startedAt < EXIT_BACK_WINDOW_MILLIS) {
+                exitHintStartedAt = null
                 activity?.finish()
             } else {
-                lastBackPressMillis = now
-                coroutineScope.launch {
-                    snackbarHostState.showSnackbar(
-                        message = "Press back again to exit",
-                    )
-                }
+                exitHintStartedAt = now
             }
         }
     }
@@ -262,7 +272,6 @@ fun HomiqApp() {
 
     if (route == HomiqRoute.MAIN) {
         Scaffold(
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             bottomBar = {
                 HomikaBottomBar(
                     selected = selectedDestination,
@@ -283,12 +292,33 @@ fun HomiqApp() {
             },
         ) { innerPadding ->
             when (selectedDestination) {
-                HomiqDestination.Home -> HomeScreen(
-                    viewModel = dashboardViewModel,
-                    onBookingClick = { navigate(HomiqRoute.BOOKING_DETAIL, id = it) },
-                    onReportsClick = { navigate(HomiqRoute.REPORTS) },
-                    modifier = Modifier.padding(innerPadding),
-                )
+                HomiqDestination.Home -> Box(
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                ) {
+                    HomeScreen(
+                        viewModel = dashboardViewModel,
+                        onBookingClick = { navigate(HomiqRoute.BOOKING_DETAIL, id = it) },
+                        onReportsClick = { navigate(HomiqRoute.REPORTS) },
+                    )
+                    if (exitHintStartedAt != null) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(horizontal = 68.dp, vertical = 8.dp)
+                                .semantics { liveRegion = LiveRegionMode.Polite },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.inverseSurface,
+                            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.press_back_again_to_exit),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+                }
                 HomiqDestination.Calendar -> CalendarScreen(
                     viewModel = calendarViewModel,
                     onBookingClick = { navigate(HomiqRoute.BOOKING_DETAIL, id = it) },
@@ -317,13 +347,13 @@ fun HomiqApp() {
                     hasPro = hasPro,
                     appLockEnabled = appLockState.hasPin,
                     onSecurityClick = { navigate(HomiqRoute.SECURITY) },
-                    onCheckUpdates = { updateManager.checkForUpdates(manual = true) },
+                    onAboutClick = { navigate(HomiqRoute.ABOUT) },
                     modifier = Modifier.padding(innerPadding),
                 )
             }
         }
     } else {
-        Scaffold(snackbarHost = { SnackbarHost(hostState = snackbarHostState) }) { innerPadding ->
+        Scaffold { innerPadding ->
             when (route) {
                 HomiqRoute.PROPERTIES -> PropertiesScreen(
                     viewModel = propertyViewModel,
@@ -393,6 +423,10 @@ fun HomiqApp() {
                         licenseFromBackup = true
                         navigate(HomiqRoute.LICENSE)
                     },
+                    modifier = Modifier.padding(innerPadding),
+                )
+                HomiqRoute.ABOUT -> AboutScreen(
+                    onCheckUpdates = { updateManager.checkForUpdates(manual = true) },
                     modifier = Modifier.padding(innerPadding),
                 )
                 HomiqRoute.SECURITY -> SecurityScreen(viewModel = appLockViewModel, modifier = Modifier.padding(innerPadding))

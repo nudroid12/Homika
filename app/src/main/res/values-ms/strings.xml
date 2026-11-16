@@ -460,4 +460,11 @@
     <string name="booking_action_delete">Padam tempahan</string>
     <string name="booking_delete_title">Padam tempahan?</string>
     <string name="booking_delete_message">Padam tempahan untuk %1$s? Tempahan ini akan dibuang daripada senarai tempahan dan kalendar. Tindakan ini tidak boleh dibuat asal.</string>
+    <string name="press_back_again_to_exit">Tekan Kembali sekali lagi untuk keluar</string>
+    <string name="about_title">Perihal</string>
+    <string name="about_installed_version">Versi %1$s</string>
+    <string name="about_description">Urus hartanah, tempahan dan kewangan di satu tempat.</string>
+    <string name="about_check_updates">Semak kemas kini</string>
+    <string name="about_support">Sokongan</string>
+    <string name="about_developed_by">Dibangunkan oleh NudroidLabs</string>
 </resources>
