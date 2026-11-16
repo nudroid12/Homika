@@ -65,6 +65,7 @@ fun MoreScreen(
     onPropertiesClick: () -> Unit,
     onBackupClick: () -> Unit,
     onLicenseClick: () -> Unit,
+    hasPro: Boolean,
     appLockEnabled: Boolean,
     onSecurityClick: () -> Unit,
     onCheckUpdates: () -> Unit,
@@ -146,8 +147,11 @@ fun MoreScreen(
             CompactSettingRow(
                 icon = Icons.Outlined.VerifiedUser,
                 title = stringResource(R.string.license_settings_title),
-                supporting = stringResource(R.string.license_settings_supporting),
-                trailing = stringResource(R.string.license_settings_active),
+                supporting = stringResource(
+                    if (hasPro) R.string.license_settings_supporting
+                    else R.string.license_pro_cloud_features,
+                ),
+                trailing = if (hasPro) stringResource(R.string.license_settings_active) else null,
                 onClick = onLicenseClick,
             )
         }

@@ -102,7 +102,6 @@ class BackupViewModel(
     val state: StateFlow<BackupUiState> = mutableState.asStateFlow()
 
     init {
-        refreshCloud()
         viewModelScope.launch {
             cloudSyncCoordinator.state.collect { syncState ->
                 mutableState.value = mutableState.value.copy(

@@ -90,6 +90,14 @@ class LicenseViewModel(
         }
     }
 
+    fun updateExpiredAccess() {
+        val current = mutableState.value
+        val local = repository.localState()
+        if (current.access == LicenseAccess.ACTIVE && local.access == LicenseAccess.EXPIRED) {
+            mutableState.value = local.copy(busy = current.busy)
+        }
+    }
+
     fun retry() {
         if (mutableState.value.busy) return
         refresh(forceBusy = true)

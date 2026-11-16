@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="cloud_backup_page_subtitle">Sync and protect your Homika data.</string>
+    <string name="cloud_backup_page_subtitle">Create or restore a backup file, or protect your data with Homika Cloud.</string>
     <string name="cloud_backup_title">Homika Cloud</string>
     <string name="cloud_backup_body">Create an encrypted cloud backup tied to your active Homika Pro licence. The backup is encrypted on this device before it is uploaded.</string>
     <string name="cloud_latest_backup">Latest cloud backup</string>

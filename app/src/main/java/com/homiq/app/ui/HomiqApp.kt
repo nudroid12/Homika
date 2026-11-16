@@ -56,6 +56,7 @@ import com.homiq.app.BuildConfig
 import com.homiq.app.HomiqApplication
 import com.homiq.app.R
 import com.homiq.app.data.license.LicenseAccess
+import com.homiq.app.data.license.LicensePlanType
 import com.homiq.app.data.preferences.OnboardingPreferences
 import com.homiq.app.ui.components.HomikaUpdateDialog
 import com.homiq.app.ui.screens.AppLockScreen
@@ -89,6 +90,7 @@ import com.homiq.app.ui.viewmodel.LicenseViewModel
 import com.homiq.app.ui.viewmodel.MoneyViewModel
 import com.homiq.app.ui.viewmodel.PropertyViewModel
 import com.homiq.app.ui.viewmodel.ReportsViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class HomiqDestination(
@@ -127,18 +129,15 @@ fun HomiqApp() {
     val licenseState by licenseViewModel.state.collectAsStateWithLifecycle()
     val licenseDeviceState by licenseViewModel.deviceState.collectAsStateWithLifecycle()
     val licenseCheckoutState by licenseViewModel.checkoutState.collectAsStateWithLifecycle()
-    if (licenseState.access != LicenseAccess.ACTIVE) {
-        LicenseActivationScreen(
-            state = licenseState,
-            onActivate = licenseViewModel::activate,
-            onActivatePurchase = licenseViewModel::activatePurchase,
-            onClaimTrial = licenseViewModel::claimTrial,
-            onRetry = licenseViewModel::retry,
-            checkoutState = licenseCheckoutState,
-            onOpenRenewal = licenseViewModel::prepareRenewalCheckout,
-            onCheckoutConsumed = licenseViewModel::consumeCheckoutUrl,
-        )
-        return
+    val hasPro = licenseState.access == LicenseAccess.ACTIVE
+
+    LaunchedEffect(hasPro, licenseState.planType, licenseState.expiresAtEpochMillis) {
+        if (hasPro && licenseState.planType != LicensePlanType.LIFETIME &&
+            licenseState.expiresAtEpochMillis > 0L
+        ) {
+            delay((licenseState.expiresAtEpochMillis - System.currentTimeMillis()).coerceAtLeast(0L))
+            licenseViewModel.updateExpiredAccess()
+        }
     }
 
     val appLockViewModel: AppLockViewModel = viewModel(factory = factory)
@@ -165,6 +164,7 @@ fun HomiqApp() {
 
     var destinationName by rememberSaveable { mutableStateOf(HomiqDestination.Home.name) }
     var routeName by rememberSaveable { mutableStateOf(HomiqRoute.MAIN.name) }
+    var licenseFromBackup by rememberSaveable { mutableStateOf(false) }
     var routeId by rememberSaveable { mutableStateOf<String?>(null) }
     var routeEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
     var routePropertyId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -218,6 +218,11 @@ fun HomiqApp() {
         navigate(HomiqRoute.MAIN)
     }
 
+    fun closeLicense() {
+        if (licenseFromBackup) navigate(HomiqRoute.BACKUP)
+        else goMain(HomiqDestination.More)
+    }
+
     BackHandler {
         if (route != HomiqRoute.MAIN) {
             when (route) {
@@ -233,8 +238,8 @@ fun HomiqApp() {
                 HomiqRoute.REPORTS -> goMain(HomiqDestination.Home)
                 HomiqRoute.BACKUP,
                 HomiqRoute.SECURITY,
-                HomiqRoute.LICENSE,
                 HomiqRoute.PROPERTIES -> goMain(HomiqDestination.More)
+                HomiqRoute.LICENSE -> closeLicense()
                 HomiqRoute.MAIN -> Unit
             }
         } else if (selectedDestination != HomiqDestination.Home) {
@@ -305,7 +310,11 @@ fun HomiqApp() {
                 HomiqDestination.More -> MoreScreen(
                     onPropertiesClick = { navigate(HomiqRoute.PROPERTIES) },
                     onBackupClick = { navigate(HomiqRoute.BACKUP) },
-                    onLicenseClick = { navigate(HomiqRoute.LICENSE) },
+                    onLicenseClick = {
+                        licenseFromBackup = false
+                        navigate(HomiqRoute.LICENSE)
+                    },
+                    hasPro = hasPro,
                     appLockEnabled = appLockState.hasPin,
                     onSecurityClick = { navigate(HomiqRoute.SECURITY) },
                     onCheckUpdates = { updateManager.checkForUpdates(manual = true) },
@@ -377,21 +386,44 @@ fun HomiqApp() {
                     modifier = Modifier.padding(innerPadding),
                 )
                 HomiqRoute.REPORTS -> ReportsScreen(viewModel = reportsViewModel, modifier = Modifier.padding(innerPadding))
-                HomiqRoute.BACKUP -> BackupScreen(viewModel = backupViewModel, modifier = Modifier.padding(innerPadding))
-                HomiqRoute.SECURITY -> SecurityScreen(viewModel = appLockViewModel, modifier = Modifier.padding(innerPadding))
-                HomiqRoute.LICENSE -> LicenseManagementScreen(
-                    state = licenseState,
-                    deviceState = licenseDeviceState,
-                    onRefresh = licenseViewModel::refreshNow,
-                    onRefreshDevices = licenseViewModel::refreshDevices,
-                    onDeactivateOtherDevice = licenseViewModel::deactivateOtherDevice,
-                    onDeactivate = licenseViewModel::deactivate,
-                    checkoutState = licenseCheckoutState,
-                    onOpenRenewal = licenseViewModel::prepareRenewalCheckout,
-                    onCheckoutConsumed = licenseViewModel::consumeCheckoutUrl,
-                    onBack = { goMain(HomiqDestination.More) },
+                HomiqRoute.BACKUP -> BackupScreen(
+                    viewModel = backupViewModel,
+                    hasPro = hasPro,
+                    onProClick = {
+                        licenseFromBackup = true
+                        navigate(HomiqRoute.LICENSE)
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
+                HomiqRoute.SECURITY -> SecurityScreen(viewModel = appLockViewModel, modifier = Modifier.padding(innerPadding))
+                HomiqRoute.LICENSE -> if (hasPro) {
+                    LicenseManagementScreen(
+                        state = licenseState,
+                        deviceState = licenseDeviceState,
+                        onRefresh = licenseViewModel::refreshNow,
+                        onRefreshDevices = licenseViewModel::refreshDevices,
+                        onDeactivateOtherDevice = licenseViewModel::deactivateOtherDevice,
+                        onDeactivate = licenseViewModel::deactivate,
+                        checkoutState = licenseCheckoutState,
+                        onOpenRenewal = licenseViewModel::prepareRenewalCheckout,
+                        onCheckoutConsumed = licenseViewModel::consumeCheckoutUrl,
+                        onBack = ::closeLicense,
+                        modifier = Modifier.padding(innerPadding),
+                    )
+                } else {
+                    LicenseActivationScreen(
+                        state = licenseState,
+                        onActivate = licenseViewModel::activate,
+                        onActivatePurchase = licenseViewModel::activatePurchase,
+                        onClaimTrial = licenseViewModel::claimTrial,
+                        onRetry = licenseViewModel::retry,
+                        checkoutState = licenseCheckoutState,
+                        onOpenRenewal = licenseViewModel::prepareRenewalCheckout,
+                        onCheckoutConsumed = licenseViewModel::consumeCheckoutUrl,
+                        onBack = ::closeLicense,
+                        modifier = Modifier.padding(innerPadding),
+                    )
+                }
                 HomiqRoute.MAIN -> Unit
             }
         }

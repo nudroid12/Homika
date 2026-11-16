@@ -40,7 +40,7 @@
     <string name="license_deactivate_device">Nyahaktifkan peranti ini</string>
     <string name="license_deactivate_note">Nyahaktif akan mengosongkan satu slot peranti. Data Homika lokal anda tidak akan dipadam.</string>
     <string name="license_deactivate_confirm_title">Nyahaktifkan peranti ini?</string>
-    <string name="license_deactivate_confirm_body">Homika Pro akan kembali ke skrin pengaktifan pada peranti ini. Data hartanah dan tempahan lokal kekal pada peranti.</string>
+    <string name="license_deactivate_confirm_body">Peranti ini akan kehilangan akses kepada Homika Cloud. Anda masih boleh membuka dan mengedit data pada peranti ini.</string>
     <string name="license_deactivate_confirm">Nyahaktif</string>
     <string name="license_deactivate_network">Tidak dapat nyahaktif kerana pelayan lesen tidak dapat dicapai. Sambungkan internet dan cuba lagi.</string>
     <string name="license_last_verified">Terakhir disahkan</string>
@@ -139,7 +139,7 @@
     <string name="license_store_error_verify">Sahkan lesen ini secara online dahulu, kemudian buka checkout semula.</string>
     <string name="license_store_error_generic">Checkout Homika tidak dapat disediakan. Cuba lagi sebentar lagi.</string>
 
-    <string name="license_entry_body">Mulakan percuma selama 7 hari, atau log masuk jika anda sudah membeli Homika Pro.</string>
+    <string name="license_entry_body">Cuba Homika Pro percuma selama 7 hari, atau aktifkan lesen yang anda sudah ada.</string>
     <string name="license_entry_already_purchased">Sudah membeli?</string>
     <string name="license_entry_buy">Beli Homika Pro</string>
     <string name="license_purchase_page_title">Aktifkan Homika Pro</string>
@@ -174,4 +174,6 @@
     <string name="license_purchase_invalid_email_body">Masukkan alamat email sah yang sama seperti digunakan semasa pembelian Homika.</string>
     <string name="license_purchase_pin_required_body">Masukkan PIN Pembelian 6 digit yang tepat seperti ditetapkan semasa checkout.</string>
 
+    <string name="license_pro_cloud_features">Segerakkan data antara peranti dan buat sandaran automatik ke Homika Cloud.</string>
+    <string name="license_pro_options">Lihat pilihan Pro</string>
 </resources>

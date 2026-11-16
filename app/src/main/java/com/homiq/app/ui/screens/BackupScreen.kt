@@ -31,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,12 +56,18 @@ import java.util.Date
 @Composable
 fun BackupScreen(
     viewModel: BackupViewModel,
+    hasPro: Boolean,
+    onProClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var showCloudRecovery by remember { mutableStateOf(false) }
-    var showCloudInfo by remember { mutableStateOf(false) }
+    var showCloudRecovery by remember(hasPro) { mutableStateOf(false) }
+    var showCloudInfo by remember(hasPro) { mutableStateOf(false) }
+
+    LaunchedEffect(hasPro) {
+        if (hasPro) viewModel.refreshCloud()
+    }
 
     BackHandler(enabled = showCloudRecovery) {
         showCloudRecovery = false
@@ -222,7 +229,24 @@ fun BackupScreen(
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
+                ) cloudCard@{
+                    if (!hasPro) {
+                        Text(
+                            text = stringResource(R.string.license_settings_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.license_pro_cloud_features),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        TextButton(onClick = onProClick) {
+                            Text(stringResource(R.string.license_pro_options))
+                        }
+                        return@cloudCard
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

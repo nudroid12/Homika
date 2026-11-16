@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="cloud_backup_page_subtitle">Selaraskan dan lindungi data Homika anda.</string>
+    <string name="cloud_backup_page_subtitle">Cipta atau pulihkan fail sandaran, atau lindungi data anda dengan Homika Cloud.</string>
     <string name="cloud_backup_title">Homika Cloud</string>
     <string name="cloud_backup_body">Buat backup cloud terenkripsi yang terikat kepada lesen Homika Pro aktif. Backup dienkripsi pada peranti ini sebelum dihantar.</string>
     <string name="cloud_latest_backup">Backup cloud terkini</string>
