@@ -1,0 +1,94 @@
+name: Clean up Homika repository
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Commit the cleanup to main. Leave unchecked to preview."
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: homika-pro-patch-release
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require main
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo "::error::Select main in Run workflow."
+            exit 1
+          fi
+
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Preview or apply cleanup
+        shell: bash
+        env:
+          APPLY_CLEANUP: ${{ inputs.apply }}
+        run: |
+          set -euo pipefail
+
+          candidates=(
+            README-PATCH-13A.2.1.txt
+            README-PATCH-13A.3.txt
+            README-PATCH-13B.txt
+            README-PATCH-13C.txt
+            README-PATCH-13C.2.txt
+            README-PATCH-13C.3.txt
+            README-PATCH-13C.4.txt
+            README-PATCH-13C.5.txt
+            README-PATCH-13C.6.txt
+            README-PATCH-13C.7.txt
+            README-PATCH-13C.8.txt
+            README-PATCH-13C.8.1.txt
+            README-PATCH-13C.9.txt
+            README-PATCH-13C.9.1.txt
+            README-PATCH-14A.txt
+            README-PATCH-15B.txt
+            README-PATCH-15C.txt
+            gitignore.txt
+          )
+
+          files=()
+          for file in "${candidates[@]}"; do
+            if git ls-files --error-unmatch -- "$file" >/dev/null 2>&1; then
+              files+=("$file")
+            fi
+          done
+
+          if (( ${#files[@]} == 0 )); then
+            echo "No cleanup candidates found." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo '### Tracked files selected for cleanup'
+            echo
+            printf -- '- `%s`\n' "${files[@]}"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$APPLY_CLEANUP" != true ]]; then
+            echo 'Preview only. Run again with apply enabled to commit the listed deletions.' |
+              tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git rm -- "${files[@]}"
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "chore: remove obsolete Homika patch notes"
+          git push origin HEAD:refs/heads/main
+          echo 'Cleanup committed to main.' >> "$GITHUB_STEP_SUMMARY"
